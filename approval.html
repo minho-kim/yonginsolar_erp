@@ -151,11 +151,13 @@
 
 <script>
 // ============================================================
-// [설정] 수퍼베이스 연결 정보 (키를 꼭 넣으세요!)
+// [설정] 수퍼베이스 연결 정보
 // ============================================================
 const SUPABASE_URL = 'https://ifdqlwxgqgsvnawmhlfc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmZHFsd3hncWdzdm5hd21obGZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxODQ3NDIsImV4cCI6MjA4Mjc2MDc0Mn0.UKUvMOl58KuDH24seC3oSgla7mK5lr-vXjqtpalnl6k';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// [수정 포인트] 변수명 충돌 방지: supabase -> _supabase
+const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // 전역 변수
 let myInfo = null;
@@ -175,12 +177,17 @@ let historyCache = [];
 window.onload = async function() {
     modalInstance = new bootstrap.Modal(document.getElementById('userModal'));
     
+    // 로컬스토리지에서 내 정보 가져오기
     const stored = localStorage.getItem('erp_user');
-    if (!stored) { alert("로그인이 필요합니다."); location.href = 'index.html'; return; }
+    if (!stored) { 
+        alert("로그인이 필요합니다."); 
+        location.href = 'index.html'; 
+        return; 
+    }
     myInfo = JSON.parse(stored);
 
-    // 사용자 목록 미리 로드
-    const { data: users } = await supabase.from('ref_employees').select('*').eq('is_active', true).order('rank_level', {ascending:false});
+    // 사용자 목록 미리 로드 (_supabase 사용)
+    const { data: users } = await _supabase.from('ref_employees').select('*').eq('is_active', true).order('rank_level', {ascending:false});
     allUsers = users || [];
 
     // 내 휴가 정보 로드
@@ -188,11 +195,11 @@ window.onload = async function() {
 };
 
 async function loadMyLeave() {
-    const { data } = await supabase.from('hr_leave').select('remaining_days').eq('emp_id', myInfo.emp_id).single();
+    const { data } = await _supabase.from('hr_leave').select('remaining_days').eq('emp_id', myInfo.emp_id).single();
     if(data) document.getElementById("remainDaysBadge").innerText = data.remaining_days;
 }
 
-// 탭 전환
+// 탭 전환 (이제 에러 없이 작동할 겁니다!)
 function switchTab(tab) {
     document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
@@ -289,8 +296,6 @@ function toggleSelect(user) {
 function confirmSelection() {
     if (modalType === 'approver') {
         finalApprovers = [...tempSelection];
-        // 직급순 정렬 로직 (rank_level이 높을수록 나중)
-        // finalApprovers.sort((a,b) => a.rank_level - b.rank_level); 
         renderLinePreview();
     } else {
         finalRefs = [...tempSelection];
@@ -351,17 +356,15 @@ async function handleDraftSubmit(e) {
     const btn = document.getElementById("btnSubmit");
     btn.disabled = true; btn.innerText = "파일 업로드 중...";
 
-    // 1. 파일 업로드 (Supabase Storage)
+    // 1. 파일 업로드 (Supabase Storage -> _supabase 사용)
     const fileInput = document.getElementById("attachFile");
     const uploadedUrls = [];
     
     for (let i = 0; i < fileInput.files.length; i++) {
         const file = fileInput.files[i];
-        // 파일명 충돌 방지: 시간_파일명
         const fileName = `${Date.now()}_${file.name}`;
         
-        // 'attachments' 버킷에 업로드
-        const { data, error } = await supabase.storage
+        const { data, error } = await _supabase.storage
             .from('attachments')
             .upload(fileName, file);
             
@@ -371,8 +374,7 @@ async function handleDraftSubmit(e) {
             return;
         }
         
-        // 공개 URL 가져오기
-        const { data: { publicUrl } } = supabase.storage
+        const { data: { publicUrl } } = _supabase.storage
             .from('attachments')
             .getPublicUrl(fileName);
             
@@ -382,7 +384,6 @@ async function handleDraftSubmit(e) {
     btn.innerText = "문서 저장 중...";
 
     // 2. 결재선 데이터 구성
-    // [ {emp_id:..., name:..., status:'대기', comment:''}, ... ]
     const approvalLineData = finalApprovers.map(u => ({
         emp_id: u.emp_id,
         name: u.emp_name,
@@ -392,11 +393,10 @@ async function handleDraftSubmit(e) {
         processed_at: null
     }));
     
-    // 3. 참조자 데이터 (이메일 문자열 대신 JSON 배열로 저장 추천)
     const refData = finalRefs.map(u => ({ emp_id: u.emp_id, name: u.emp_name }));
 
-    // 4. DB Insert
-    const { error: insertError } = await supabase.from('ref_approval').insert({
+    // 3. DB Insert (_supabase 사용)
+    const { error: insertError } = await _supabase.from('ref_approval').insert({
         doc_type: appType,
         title: `${appType} 신청 - ${myInfo.emp_name}`,
         content: document.getElementById("appDesc").value,
@@ -404,8 +404,8 @@ async function handleDraftSubmit(e) {
         drafter_id: myInfo.emp_id,
         drafter_name: myInfo.emp_name,
         approval_line: approvalLineData,
-        ref_line: refData, // JSONB 컬럼 필요 (없으면 텍스트로 변환해서 text컬럼에 넣어야 함)
-        file_links: uploadedUrls, // text[] 배열 or JSONB
+        ref_line: refData, 
+        file_links: uploadedUrls, 
         current_approver: finalApprovers[0].emp_id,
         status: '진행중',
         created_at: new Date()
@@ -427,7 +427,7 @@ async function loadTodoList() {
     const el = document.getElementById("todoList");
     el.innerHTML = '<div class="text-center p-3">로딩 중...</div>';
     
-    const { data, error } = await supabase
+    const { data, error } = await _supabase
         .from('ref_approval')
         .select('*')
         .eq('status', '진행중')
@@ -446,9 +446,7 @@ async function loadHistoryList() {
     const el = document.getElementById("historyList");
     el.innerHTML = '<div class="text-center p-3">로딩 중...</div>';
     
-    // 내가 기안했거나, 참조자에 내가 포함된 문서 (Supabase 필터링 한계로 일단 내가 기안한 것만)
-    // *고급: OR 조건 쓰려면 .or(`drafter_id.eq.${myInfo.emp_id}, ...`) 사용
-    const { data } = await supabase
+    const { data } = await _supabase
         .from('ref_approval')
         .select('*')
         .eq('drafter_id', myInfo.emp_id)
@@ -496,7 +494,6 @@ function renderDocs(target, list, isTodo) {
                 <button class="btn btn-sm btn-danger" onclick="procDoc(${doc.id}, '반려')">반려</button>
             </div>`;
         } else {
-            // 상태 배지
             let badge = doc.status==='완료'?'bg-success':(doc.status==='반려'?'bg-danger':'bg-warning');
             btnHtml = `<div class="mt-2 text-end"><span class="badge ${badge}">${doc.status}</span></div>`;
         }
@@ -525,7 +522,7 @@ async function procDoc(docId, action) {
     if (reason === null) return;
 
     // 1. 최신 데이터 로드
-    const { data: doc } = await supabase.from('ref_approval').select('*').eq('id', docId).single();
+    const { data: doc } = await _supabase.from('ref_approval').select('*').eq('id', docId).single();
     let line = doc.approval_line;
     let nextUser = null;
     let newStatus = '진행중';
@@ -543,17 +540,15 @@ async function procDoc(docId, action) {
         newStatus = '반려';
         nextUser = null;
     } else {
-        // 승인 시 다음 사람 확인
         if (idx + 1 < line.length) {
             nextUser = line[idx+1].emp_id;
         } else {
-            newStatus = '완료'; // 마지막 결재자
-            // (추가 기능) 만약 '휴가' 문서가 완료되면 hr_leave에서 잔여일수 차감 로직 추가 가능
+            newStatus = '완료'; 
         }
     }
 
     // 4. 저장
-    const { error } = await supabase.from('ref_approval').update({
+    const { error } = await _supabase.from('ref_approval').update({
         approval_line: line,
         current_approver: nextUser,
         status: newStatus
