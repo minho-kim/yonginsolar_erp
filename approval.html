@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>전자결재 (Full Ver)</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <style>
+    body { background-color: #f8f9fa; padding: 20px; font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; }
+    .main-container { max-width: 900px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); padding: 30px; }
+    .hidden { display: none !important; }
+    
+    /* 결재선 스타일 */
+    .line-step { display: inline-block; background: #e3f2fd; color: #0d47a1; padding: 5px 12px; border-radius: 20px; margin-right: 5px; margin-bottom: 5px; font-size: 0.9rem; border: 1px solid #bbdefb; }
+    .line-arrow { margin-right: 5px; color: #999; font-weight: bold; }
+    .ref-step { display: inline-block; background: #f1f3f5; color: #495057; padding: 5px 10px; border-radius: 5px; margin-right: 5px; margin-bottom: 5px; font-size: 0.85rem; border: 1px solid #dee2e6; }
+    
+    /* 리스트 및 입력창 */
+    .user-select-item { cursor: pointer; }
+    .user-select-item:hover { background-color: #f8f9fa; }
+    .user-select-item.active { background-color: #e8f0fe; border-color: #4285f4; }
+    .large-textarea { min-height: 300px; resize: vertical; }
+    
+    /* 파일 목록 */
+    .file-item { font-size: 0.9rem; background: #f8f9fa; padding: 8px 12px; border-radius: 6px; margin-bottom: 4px; border: 1px solid #eee; }
+    .file-size { font-size: 0.8rem; color: #888; float: right; }
+  </style>
+</head>
+<body>
+
+<div class="main-container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold m-0">⚡ 전자결재 시스템</h4> 
+    <button class="btn btn-outline-secondary btn-sm" onclick="location.href='index.html'">🏠 메뉴로</button>
+  </div>
+
+  <ul class="nav nav-pills nav-fill mb-4">
+    <li class="nav-item"><button class="nav-link active" id="tab1" onclick="switchTab('draft')">✍️ 기안 작성</button></li>
+    <li class="nav-item"><button class="nav-link" id="tab2" onclick="switchTab('todo')">📬 결재 대기함</button></li>
+    <li class="nav-item"><button class="nav-link" id="tab3" onclick="switchTab('history')">🗂️ 문서 보관함</button></li>
+  </ul>
+
+  <div id="view-draft">
+    <form id="draftForm" onsubmit="handleDraftSubmit(event)">
+      
+      <div class="row mb-3">
+        <div class="col-12 mb-3">
+          <label class="small text-muted fw-bold">결재 구분</label>
+          <select class="form-select" id="appTypeDisplay" onchange="handleCategoryChange(this)">
+            <option value="지출결의">💰 지출결의서</option>
+            <option value="일반품의">📄 일반품의서</option>
+            <option value="휴가">🏖️ 휴가(근태)</option>
+          </select>
+        </div>
+
+        <div class="col-12" id="divAmount">
+          <label class="small text-muted">금액 (원)</label>
+          <input type="number" class="form-control" id="appAmount" placeholder="0">
+        </div>
+
+        <div class="col-12 hidden" id="divLeaveSection">
+          <div class="p-3 bg-light border rounded">
+            <div class="d-flex justify-content-between mb-2">
+              <span class="fw-bold">📅 휴가 기간 선택</span>
+              <span class="badge bg-primary">잔여 연차: <span id="remainDaysBadge">0</span>일</span>
+            </div>
+            <div class="input-group mb-2">
+              <input type="date" class="form-control" id="leaveStart" onchange="calcLeaveDays()">
+              <span class="input-group-text">~</span>
+              <input type="date" class="form-control" id="leaveEnd" onchange="calcLeaveDays()">
+            </div>
+            <div class="text-end small text-muted">
+              신청 일수: <span id="leaveDaysBadge" class="fw-bold text-dark">0일</span>
+              <input type="hidden" id="leaveDaysCalc" value="0">
+            </div>
+            <div class="text-danger small mt-1 hidden" id="leaveOverMsg">⛔ 잔여 연차가 부족합니다!</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="small text-muted fw-bold">결재선 (필수)</label>
+        <div class="card p-3 border-0 bg-light mb-2">
+          <div id="linePreview" class="mb-2 text-muted small">결재자를 추가해주세요.</div>
+          <div>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="openUserModal('approver')">➕ 결재자 선택</button>
+            <button type="button" class="btn btn-sm btn-outline-danger ms-1" onclick="resetLine('approver')">↺ 초기화</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="small text-muted">참조자 (선택)</label>
+        <div class="card p-3 border-0 bg-light">
+          <div id="refPreview" class="mb-2 text-muted small">참조자가 없습니다.</div>
+          <div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="openUserModal('referrer')">➕ 참조자 선택</button>
+            <button type="button" class="btn btn-sm btn-outline-danger ms-1" onclick="resetLine('referrer')">↺ 초기화</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="small text-muted">내용</label>
+        <textarea class="form-control large-textarea" id="appDesc" placeholder="내용을 상세히 입력하세요." required></textarea>
+      </div>
+
+      <div class="mb-4">
+        <label class="small text-muted">증빙 첨부</label>
+        <input type="file" class="form-control" id="attachFile" multiple onchange="updateFileList()">
+        <div id="fileListArea" class="mt-2"></div>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-100 py-3 fw-bold btn-lg" id="btnSubmit">상신하기</button>
+    </form>
+  </div>
+
+  <div id="view-todo" class="hidden">
+    <div id="todoList" class="list-group"></div>
+  </div>
+
+  <div id="view-history" class="hidden">
+    <div class="input-group mb-3">
+        <input type="text" class="form-control" id="searchKeyword" placeholder="제목, 기안자 검색" onkeyup="filterHistory()">
+        <button class="btn btn-outline-secondary">🔍</button>
+    </div>
+    <div id="historyList" class="list-group"></div>
+  </div>
+</div>
+
+<div class="modal fade" id="userModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title fw-bold" id="modalTitle">직원 선택</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="list-group list-group-flush" id="userSelectList"></div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <span class="small text-muted ms-2"><span id="selCount">0</span>명 선택됨</span>
+                <button type="button" class="btn btn-primary" onclick="confirmSelection()">선택 완료</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================================
+// [설정] 수퍼베이스 연결 정보 (키를 꼭 넣으세요!)
+// ============================================================
+const SUPABASE_URL = 'https://국장님프로젝트ID.supabase.co';
+const SUPABASE_KEY = 'eyJ... (anon key)';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// 전역 변수
+let myInfo = null;
+let allUsers = [];
+let modalInstance = null;
+let modalType = ''; // 'approver' or 'referrer'
+
+// 선택된 사람들 저장소
+let tempSelection = [];
+let finalApprovers = [];
+let finalRefs = [];
+
+// 문서 전체 목록 캐시 (검색용)
+let historyCache = [];
+
+// 1. 초기화 및 로그인 체크
+window.onload = async function() {
+    modalInstance = new bootstrap.Modal(document.getElementById('userModal'));
+    
+    const stored = localStorage.getItem('erp_user');
+    if (!stored) { alert("로그인이 필요합니다."); location.href = 'index.html'; return; }
+    myInfo = JSON.parse(stored);
+
+    // 사용자 목록 미리 로드
+    const { data: users } = await supabase.from('ref_employees').select('*').eq('is_active', true).order('rank_level', {ascending:false});
+    allUsers = users || [];
+
+    // 내 휴가 정보 로드
+    loadMyLeave();
+};
+
+async function loadMyLeave() {
+    const { data } = await supabase.from('hr_leave').select('remaining_days').eq('emp_id', myInfo.emp_id).single();
+    if(data) document.getElementById("remainDaysBadge").innerText = data.remaining_days;
+}
+
+// 탭 전환
+function switchTab(tab) {
+    document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
+
+    if (tab === 'draft') {
+        document.getElementById('tab1').classList.add('active');
+        document.getElementById('view-draft').classList.remove('hidden');
+    } else if (tab === 'todo') {
+        document.getElementById('tab2').classList.add('active');
+        document.getElementById('view-todo').classList.remove('hidden');
+        loadTodoList();
+    } else {
+        document.getElementById('tab3').classList.add('active');
+        document.getElementById('view-history').classList.remove('hidden');
+        loadHistoryList();
+    }
+}
+
+// =========================================
+// [기능 1] 휴가 및 카테고리 로직
+// =========================================
+function handleCategoryChange(sel) {
+    const type = sel.value;
+    const desc = document.getElementById("appDesc");
+    
+    if (type === '휴가') {
+        document.getElementById("divAmount").classList.add("hidden");
+        document.getElementById("divLeaveSection").classList.remove("hidden");
+        desc.value = "위와 같이 휴가를 신청하오니 재가하여 주시기 바랍니다.";
+    } else {
+        document.getElementById("divAmount").classList.remove("hidden");
+        document.getElementById("divLeaveSection").classList.add("hidden");
+        if(desc.value.includes("휴가를 신청")) desc.value = "";
+    }
+}
+
+function calcLeaveDays() {
+    const s = document.getElementById("leaveStart").value;
+    const e = document.getElementById("leaveEnd").value;
+    if (s && e) {
+        const d1 = new Date(s);
+        const d2 = new Date(e);
+        if (d2 >= d1) {
+            // 주말 포함 단순 계산 (필요시 주말 제외 로직 추가 가능)
+            const days = Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+            document.getElementById("leaveDaysBadge").innerText = days + "일";
+            document.getElementById("leaveDaysCalc").value = days;
+            
+            const remain = Number(document.getElementById("remainDaysBadge").innerText);
+            if(days > remain) document.getElementById("leaveOverMsg").classList.remove("hidden");
+            else document.getElementById("leaveOverMsg").classList.add("hidden");
+        }
+    }
+}
+
+// =========================================
+// [기능 2] 결재선/참조자 모달 로직
+// =========================================
+function openUserModal(type) {
+    modalType = type;
+    document.getElementById("modalTitle").innerText = (type === 'approver') ? "결재자 선택" : "참조자 선택";
+    
+    // 기존 선택된 사람 불러오기
+    tempSelection = (type === 'approver') ? [...finalApprovers] : [...finalRefs];
+    renderUserList();
+    modalInstance.show();
+}
+
+function renderUserList() {
+    const listEl = document.getElementById("userSelectList");
+    listEl.innerHTML = "";
+    
+    // 나 자신 제외
+    const targets = allUsers.filter(u => u.emp_id !== myInfo.emp_id);
+    
+    targets.forEach(u => {
+        const isSelected = tempSelection.some(s => s.emp_id === u.emp_id);
+        const a = document.createElement("a");
+        a.className = `list-group-item list-group-item-action user-select-item d-flex justify-content-between ${isSelected ? 'active' : ''}`;
+        a.innerHTML = `<div><span class="badge bg-secondary me-2">${u.position}</span>${u.emp_name}</div>${isSelected ? '✅' : ''}`;
+        a.onclick = () => toggleSelect(u);
+        listEl.appendChild(a);
+    });
+    document.getElementById("selCount").innerText = tempSelection.length;
+}
+
+function toggleSelect(user) {
+    const idx = tempSelection.findIndex(s => s.emp_id === user.emp_id);
+    if (idx > -1) tempSelection.splice(idx, 1);
+    else tempSelection.push(user);
+    renderUserList(); // 리렌더링
+}
+
+function confirmSelection() {
+    if (modalType === 'approver') {
+        finalApprovers = [...tempSelection];
+        // 직급순 정렬 로직 (rank_level이 높을수록 나중)
+        // finalApprovers.sort((a,b) => a.rank_level - b.rank_level); 
+        renderLinePreview();
+    } else {
+        finalRefs = [...tempSelection];
+        renderRefPreview();
+    }
+    modalInstance.hide();
+}
+
+function renderLinePreview() {
+    const el = document.getElementById("linePreview");
+    if(finalApprovers.length === 0) { el.innerText = "결재자를 추가해주세요."; return; }
+    
+    el.innerHTML = finalApprovers.map((u, i) => 
+        `<span class="line-step">${u.emp_name} ${u.position}</span>` + (i < finalApprovers.length-1 ? '<span class="line-arrow">➡</span>' : '')
+    ).join("");
+}
+
+function renderRefPreview() {
+    const el = document.getElementById("refPreview");
+    if(finalRefs.length === 0) { el.innerText = "참조자가 없습니다."; return; }
+    el.innerHTML = finalRefs.map(u => `<span class="ref-step">📢 ${u.emp_name}</span>`).join("");
+}
+
+function resetLine(type) {
+    if(type==='approver') { finalApprovers=[]; renderLinePreview(); }
+    else { finalRefs=[]; renderRefPreview(); }
+}
+
+// =========================================
+// [기능 3] 파일 업로드 및 상신 (핵심)
+// =========================================
+function updateFileList() {
+    const files = document.getElementById("attachFile").files;
+    const area = document.getElementById("fileListArea");
+    let html = "";
+    for(let i=0; i<files.length; i++) {
+        html += `<div class="file-item">📎 ${files[i].name} <span class="file-size">${(files[i].size/1024).toFixed(1)} KB</span></div>`;
+    }
+    area.innerHTML = html;
+}
+
+async function handleDraftSubmit(e) {
+    e.preventDefault();
+    if (finalApprovers.length === 0) return alert("결재선(상급자)을 지정해야 합니다.");
+    
+    // 휴가 체크
+    const appType = document.getElementById("appTypeDisplay").value;
+    let finalAmt = document.getElementById("appAmount").value || 0;
+    
+    if (appType === '휴가') {
+        const days = Number(document.getElementById("leaveDaysCalc").value);
+        if(days <= 0) return alert("휴가 기간을 선택하세요.");
+        const remain = Number(document.getElementById("remainDaysBadge").innerText);
+        if(days > remain) return alert("잔여 연차가 부족합니다.");
+        finalAmt = days; // 금액 대신 일수 저장
+    }
+
+    const btn = document.getElementById("btnSubmit");
+    btn.disabled = true; btn.innerText = "파일 업로드 중...";
+
+    // 1. 파일 업로드 (Supabase Storage)
+    const fileInput = document.getElementById("attachFile");
+    const uploadedUrls = [];
+    
+    for (let i = 0; i < fileInput.files.length; i++) {
+        const file = fileInput.files[i];
+        // 파일명 충돌 방지: 시간_파일명
+        const fileName = `${Date.now()}_${file.name}`;
+        
+        // 'attachments' 버킷에 업로드
+        const { data, error } = await supabase.storage
+            .from('attachments')
+            .upload(fileName, file);
+            
+        if (error) {
+            alert("파일 업로드 실패: " + error.message);
+            btn.disabled = false; btn.innerText = "상신하기";
+            return;
+        }
+        
+        // 공개 URL 가져오기
+        const { data: { publicUrl } } = supabase.storage
+            .from('attachments')
+            .getPublicUrl(fileName);
+            
+        uploadedUrls.push(publicUrl);
+    }
+
+    btn.innerText = "문서 저장 중...";
+
+    // 2. 결재선 데이터 구성
+    // [ {emp_id:..., name:..., status:'대기', comment:''}, ... ]
+    const approvalLineData = finalApprovers.map(u => ({
+        emp_id: u.emp_id,
+        name: u.emp_name,
+        position: u.position,
+        status: '대기',
+        comment: '',
+        processed_at: null
+    }));
+    
+    // 3. 참조자 데이터 (이메일 문자열 대신 JSON 배열로 저장 추천)
+    const refData = finalRefs.map(u => ({ emp_id: u.emp_id, name: u.emp_name }));
+
+    // 4. DB Insert
+    const { error: insertError } = await supabase.from('ref_approval').insert({
+        doc_type: appType,
+        title: `${appType} 신청 - ${myInfo.emp_name}`,
+        content: document.getElementById("appDesc").value,
+        amount: finalAmt,
+        drafter_id: myInfo.emp_id,
+        drafter_name: myInfo.emp_name,
+        approval_line: approvalLineData,
+        ref_line: refData, // JSONB 컬럼 필요 (없으면 텍스트로 변환해서 text컬럼에 넣어야 함)
+        file_links: uploadedUrls, // text[] 배열 or JSONB
+        current_approver: finalApprovers[0].emp_id,
+        status: '진행중',
+        created_at: new Date()
+    });
+
+    if (insertError) {
+        alert("상신 오류: " + insertError.message);
+        btn.disabled = false; btn.innerText = "상신하기";
+    } else {
+        alert("성공적으로 상신되었습니다!");
+        location.reload();
+    }
+}
+
+// =========================================
+// [기능 4] 결재 대기함 & 처리
+// =========================================
+async function loadTodoList() {
+    const el = document.getElementById("todoList");
+    el.innerHTML = '<div class="text-center p-3">로딩 중...</div>';
+    
+    const { data, error } = await supabase
+        .from('ref_approval')
+        .select('*')
+        .eq('status', '진행중')
+        .eq('current_approver', myInfo.emp_id)
+        .order('created_at', {ascending: false});
+        
+    if(error) return el.innerHTML = "에러 발생";
+    
+    renderDocs(el, data, true);
+}
+
+// =========================================
+// [기능 5] 문서 보관함
+// =========================================
+async function loadHistoryList() {
+    const el = document.getElementById("historyList");
+    el.innerHTML = '<div class="text-center p-3">로딩 중...</div>';
+    
+    // 내가 기안했거나, 참조자에 내가 포함된 문서 (Supabase 필터링 한계로 일단 내가 기안한 것만)
+    // *고급: OR 조건 쓰려면 .or(`drafter_id.eq.${myInfo.emp_id}, ...`) 사용
+    const { data } = await supabase
+        .from('ref_approval')
+        .select('*')
+        .eq('drafter_id', myInfo.emp_id)
+        .order('created_at', {ascending: false});
+        
+    historyCache = data || [];
+    renderDocs(el, historyCache, false);
+}
+
+function filterHistory() {
+    const key = document.getElementById("searchKeyword").value.toLowerCase();
+    const filtered = historyCache.filter(d => 
+        d.title.toLowerCase().includes(key) || d.content.toLowerCase().includes(key)
+    );
+    renderDocs(document.getElementById("historyList"), filtered, false);
+}
+
+// 공통 렌더링 함수
+function renderDocs(target, list, isTodo) {
+    target.innerHTML = "";
+    if(!list || list.length === 0) { target.innerHTML = '<div class="text-center p-3 text-muted">문서가 없습니다.</div>'; return; }
+    
+    list.forEach(doc => {
+        // 결재선 진행상황 시각화
+        const lineHtml = doc.approval_line.map(s => {
+            let icon = s.status==='승인' ? '✅' : (s.status==='반려' ? '⛔' : '⬜');
+            let style = s.status==='승인' ? 'text-success' : (s.status==='반려' ? 'text-danger' : 'text-muted');
+            return `<span class="small me-2 ${style}">${icon} ${s.name}</span>`;
+        }).join("");
+
+        // 파일 링크
+        let fileHtml = "";
+        if (doc.file_links && doc.file_links.length > 0) {
+            fileHtml = `<div class="mt-2 pt-2 border-top">` + 
+                doc.file_links.map((url, i) => `<a href="${url}" target="_blank" class="text-decoration-none me-2">📎 첨부파일 ${i+1}</a>`).join("") +
+                `</div>`;
+        }
+
+        // 버튼 (결재함일 때만)
+        let btnHtml = "";
+        if (isTodo) {
+            btnHtml = `
+            <div class="mt-3 text-end">
+                <button class="btn btn-sm btn-success me-1" onclick="procDoc(${doc.id}, '승인')">승인</button>
+                <button class="btn btn-sm btn-danger" onclick="procDoc(${doc.id}, '반려')">반려</button>
+            </div>`;
+        } else {
+            // 상태 배지
+            let badge = doc.status==='완료'?'bg-success':(doc.status==='반려'?'bg-danger':'bg-warning');
+            btnHtml = `<div class="mt-2 text-end"><span class="badge ${badge}">${doc.status}</span></div>`;
+        }
+        
+        const div = document.createElement("div");
+        div.className = "list-group-item shadow-sm mb-3 border-0 p-3";
+        div.innerHTML = `
+            <div class="d-flex justify-content-between mb-2">
+                <span class="badge bg-primary">${doc.doc_type}</span>
+                <small class="text-muted">${new Date(doc.created_at).toLocaleDateString()}</small>
+            </div>
+            <h6 class="fw-bold mb-1">${doc.title}</h6>
+            <div class="small text-muted mb-2">기안자: ${doc.drafter_name}</div>
+            <div class="bg-light p-2 rounded mb-2" style="white-space: pre-wrap; font-size: 0.9rem;">${doc.content}</div>
+            <div class="small mb-1">${lineHtml}</div>
+            ${fileHtml}
+            ${btnHtml}
+        `;
+        target.appendChild(div);
+    });
+}
+
+// 결재 처리 프로세스
+async function procDoc(docId, action) {
+    const reason = prompt(`${action} 사유를 입력하세요 (선택사항):`);
+    if (reason === null) return;
+
+    // 1. 최신 데이터 로드
+    const { data: doc } = await supabase.from('ref_approval').select('*').eq('id', docId).single();
+    let line = doc.approval_line;
+    let nextUser = null;
+    let newStatus = '진행중';
+
+    // 2. 내 차례 찾기
+    const idx = line.findIndex(p => p.emp_id === myInfo.emp_id);
+    if (idx === -1) return alert("결재 권한이 없습니다.");
+
+    // 3. 상태 업데이트
+    line[idx].status = action;
+    line[idx].comment = reason;
+    line[idx].processed_at = new Date().toISOString();
+
+    if (action === '반려') {
+        newStatus = '반려';
+        nextUser = null;
+    } else {
+        // 승인 시 다음 사람 확인
+        if (idx + 1 < line.length) {
+            nextUser = line[idx+1].emp_id;
+        } else {
+            newStatus = '완료'; // 마지막 결재자
+            // (추가 기능) 만약 '휴가' 문서가 완료되면 hr_leave에서 잔여일수 차감 로직 추가 가능
+        }
+    }
+
+    // 4. 저장
+    const { error } = await supabase.from('ref_approval').update({
+        approval_line: line,
+        current_approver: nextUser,
+        status: newStatus
+    }).eq('id', docId);
+
+    if (error) alert("처리 실패: " + error.message);
+    else {
+        alert("처리되었습니다.");
+        loadTodoList();
+    }
+}
+</script>
+</body>
+</html>
