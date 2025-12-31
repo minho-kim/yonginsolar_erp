@@ -38,21 +38,22 @@
 
 <script>
 // ============================================================
-// [설정] 수퍼베이스 연결 정보 (아까 메모한 것 넣으세요)
+// [설정] 수퍼베이스 연결 정보
 // ============================================================
 const SUPABASE_URL = 'https://ifdqlwxgqgsvnawmhlfc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmZHFsd3hncWdzdm5hd21obGZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxODQ3NDIsImV4cCI6MjA4Mjc2MDc0Mn0.UKUvMOl58KuDH24seC3oSgla7mK5lr-vXjqtpalnl6k';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// [중요] 로그인 후 이동할 주소 (깃허브 페이지 주소로 바꿔야 함!)
-// 아직 주소를 모르면 일단 localhost로 두거나 비워두세요.
+// [수정 포인트] 변수 이름을 supabase -> _supabase 로 변경 (충돌 방지)
+const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// [중요] 로그인 후 이동할 주소
 const REDIRECT_URL = 'https://minho-kim.github.io/yonginsolar_erp/approval.html'; 
 
 // 1. 이미 로그인 되어 있는지 체크 (자동 로그인)
 window.onload = async function() {
-    const { data: { session } } = await supabase.auth.getSession();
+    // 변수명 변경 반영 (_supabase)
+    const { data: { session } } = await _supabase.auth.getSession();
     if (session) {
-        // 이미 로그인된 상태라면 바로 결재 페이지로 토스!
         location.href = 'approval.html';
     }
 };
@@ -65,15 +66,14 @@ async function sendMagicLink() {
 
     if (!email) return alert("이메일을 입력해주세요.");
 
-    // 버튼 비활성화 (중복 클릭 방지)
     btn.disabled = true;
     btn.innerText = "전송 중...";
 
-    // 수퍼베이스에게 메일 발송 요청
-    const { error } = await supabase.auth.signInWithOtp({
+    // 변수명 변경 반영 (_supabase)
+    const { error } = await _supabase.auth.signInWithOtp({
         email: email,
         options: {
-            emailRedirectTo: REDIRECT_URL // ★ 링크 클릭 시 이동할 곳
+            emailRedirectTo: REDIRECT_URL 
         }
     });
 
@@ -82,7 +82,7 @@ async function sendMagicLink() {
         btn.disabled = false;
         btn.innerText = "📧 로그인 링크 받기";
     } else {
-        btn.classList.add("d-none"); // 버튼 숨기기
+        btn.classList.add("d-none");
         msg.style.display = "block";
         msg.innerHTML = `
             <strong>📩 전송 완료!</strong><br>
