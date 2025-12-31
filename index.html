@@ -3,180 +3,92 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>협동조합 ERP (GitHub Ver)</title>
+  <title>협동조합 ERP (로그인)</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
   <style>
     body { background-color: #f8f9fa; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
     .login-card { width: 100%; max-width: 400px; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; }
-    .btn-menu { width: 100%; padding: 15px; margin-bottom: 10px; font-weight: bold; text-align: left; transition: all 0.2s; }
-    .btn-menu:hover { transform: translateY(-2px); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-    .hidden { display: none !important; }
   </style>
 </head>
 <body>
 
-  <div id="loadingScreen">
-    <div class="spinner-border text-primary" role="status"></div>
-    <p class="mt-3 text-muted">수퍼베이스 접속 중...</p>
-  </div>
-
-  <div class="login-card hidden" id="mainCard">
+  <div class="login-card">
     <h3 class="fw-bold mb-4">⚡ 협동조합 ERP</h3>
     
-    <div id="loginForm" class="hidden">
-      <div class="alert alert-light border small text-start">
-        GitHub 버전 접속입니다.<br>
-        <strong>이름과 PIN 번호</strong>를 입력해주세요.
-      </div>
+    <div id="loginForm">
+      <p class="text-muted mb-4 small">
+        등록된 이메일로 <strong>로그인 링크(Magic Link)</strong>를 보내드립니다.<br>
+        비밀번호 없이 안전하게 접속하세요.
+      </p>
+
       <div class="mb-3 text-start">
-        <label class="form-label">이름 선택</label>
-        <select class="form-select" id="loginNameSelect">
-            <option value="">로딩 중...</option>
-        </select>
+        <label class="form-label">이메일 주소</label>
+        <input type="email" class="form-control" id="emailInput" placeholder="name@coop.com">
       </div>
-      <div class="mb-3 text-start">
-        <label class="form-label">PIN 번호</label>
-        <input type="password" class="form-control" id="loginPin" placeholder="PIN 입력" maxlength="4">
-      </div>
-      <button class="btn btn-primary w-100" onclick="handleLogin()">로그인</button>
-    </div>
 
-    <div id="menuArea" class="hidden">
-      <h5 id="welcomeMsg" class="mb-4 text-primary">환영합니다</h5>
-      
-      <button class="btn btn-outline-primary btn-menu" onclick="location.href='approval.html'">
-        📝 전자결재 <span class="badge bg-primary float-end">GO</span>
-      </button>
-
-      <button class="btn btn-outline-info btn-menu" onclick="location.href='mypage.html'">
-        👤 마이페이지 <span class="badge bg-info float-end text-white">GO</span>
+      <button class="btn btn-primary w-100 py-2" id="btnSend" onclick="sendMagicLink()">
+        📧 로그인 링크 받기
       </button>
       
-      <button class="btn btn-outline-success btn-menu hidden" id="btnAccounting" onclick="location.href='accounting.html'">
-        📒 회계관리 <span class="badge bg-success float-end">GO</span>
-      </button>
-      
-      <button class="btn btn-outline-dark btn-menu hidden" id="btnAdmin" onclick="location.href='admin_employee.html'">
-        ⚙️ 직원 및 급여 관리 <span class="badge bg-dark float-end">GO</span>
-      </button>
-
-      <button class="btn btn-link text-muted mt-3" onclick="logout()">로그아웃</button>
+      <div id="statusMsg" class="mt-3 text-success small" style="display:none;"></div>
     </div>
   </div>
 
 <script>
 // ============================================================
-// [설정] 수퍼베이스 연결 정보 (아까 메모한 것 붙여넣으세요)
+// [설정] 수퍼베이스 연결 정보 (아까 메모한 것 넣으세요)
 // ============================================================
-const SUPABASE_URL = 'https://국장님프로젝트ID.supabase.co';
-const SUPABASE_KEY = 'eyJ... (anon public key)';
-const supabase = getSupabase();
+const SUPABASE_URL = 'https://ifdqlwxgqgsvnawmhlfc.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmZHFsd3hncWdzdm5hd21obGZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxODQ3NDIsImV4cCI6MjA4Mjc2MDc0Mn0.UKUvMOl58KuDH24seC3oSgla7mK5lr-vXjqtpalnl6k';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-function getSupabase() {
-    return window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-}
+// [중요] 로그인 후 이동할 주소 (깃허브 페이지 주소로 바꿔야 함!)
+// 아직 주소를 모르면 일단 localhost로 두거나 비워두세요.
+const REDIRECT_URL = 'https://국장님아이디.github.io/저장소이름/approval.html'; 
 
-// 페이지 로드 시 실행
+// 1. 이미 로그인 되어 있는지 체크 (자동 로그인)
 window.onload = async function() {
-    // 1. 이미 로그인했는지 브라우저 저장소(localStorage) 검사
-    const savedUser = localStorage.getItem('erp_user');
-    
-    if (savedUser) {
-        // 로그인 기록이 있으면 바로 메뉴 보여줌
-        showMenu(JSON.parse(savedUser));
-    } else {
-        // 없으면 로그인 폼 준비
-        await loadUserList();
-        showLoginForm();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+        // 이미 로그인된 상태라면 바로 결재 페이지로 토스!
+        location.href = 'approval.html';
     }
 };
 
-// [기능 1] 사용자 목록 가져오기 (GAS getEmployeeList_webapp 대체)
-async function loadUserList() {
-    // 수퍼베이스에 "ref_employees" 테이블에서 이름만 가져와! (퇴사자 제외)
-    const { data, error } = await supabase
-        .from('ref_employees')
-        .select('emp_name')
-        .eq('is_active', true);
+// 2. 매직 링크 발송 함수
+async function sendMagicLink() {
+    const email = document.getElementById('emailInput').value;
+    const btn = document.getElementById('btnSend');
+    const msg = document.getElementById('statusMsg');
+
+    if (!email) return alert("이메일을 입력해주세요.");
+
+    // 버튼 비활성화 (중복 클릭 방지)
+    btn.disabled = true;
+    btn.innerText = "전송 중...";
+
+    // 수퍼베이스에게 메일 발송 요청
+    const { error } = await supabase.auth.signInWithOtp({
+        email: email,
+        options: {
+            emailRedirectTo: REDIRECT_URL // ★ 링크 클릭 시 이동할 곳
+        }
+    });
 
     if (error) {
-        alert("데이터 로딩 실패: " + error.message);
-        return;
-    }
-
-    const sel = document.getElementById("loginNameSelect");
-    sel.innerHTML = "<option value=''>선택하세요</option>";
-    data.forEach(row => {
-        const opt = document.createElement('option');
-        opt.value = row.emp_name;
-        opt.text = row.emp_name;
-        sel.appendChild(opt);
-    });
-}
-
-// [기능 2] 로그인 처리 (GAS loginWithPin_webapp 대체)
-async function handleLogin() {
-    const name = document.getElementById("loginNameSelect").value;
-    const pin = document.getElementById("loginPin").value;
-
-    if (!name || !pin) return alert("이름과 PIN을 입력하세요.");
-
-    document.getElementById("loadingScreen").classList.remove("hidden");
-    document.getElementById("mainCard").classList.add("hidden");
-
-    // 수퍼베이스에 "이름이랑 PIN이 일치하는 사람 있어?" 물어보기
-    // 주의: 실제 운영 시에는 PIN을 암호화하거나, 수퍼베이스 Auth를 쓰는 게 더 안전합니다.
-    const { data, error } = await supabase
-        .from('ref_employees')
-        .select('*')
-        .eq('emp_name', name)
-        .eq('pin_code', pin)
-        .single(); // 딱 한 명만 나와야 함
-
-    if (error || !data) {
-        document.getElementById("loadingScreen").classList.add("hidden");
-        document.getElementById("mainCard").classList.remove("hidden");
-        alert("로그인 실패: 이름이나 PIN이 틀렸습니다.");
+        alert("전송 실패: " + error.message);
+        btn.disabled = false;
+        btn.innerText = "📧 로그인 링크 받기";
     } else {
-        // 로그인 성공! 브라우저에 저장해둠 (세션 대용)
-        localStorage.setItem('erp_user', JSON.stringify(data));
-        showMenu(data);
-    }
-}
-
-// 화면 전환 로직
-function showLoginForm() {
-    document.getElementById("loadingScreen").classList.add("hidden");
-    document.getElementById("mainCard").classList.remove("hidden");
-    document.getElementById("loginForm").classList.remove("hidden");
-    document.getElementById("menuArea").classList.add("hidden");
-}
-
-function showMenu(user) {
-    document.getElementById("loadingScreen").classList.add("hidden");
-    document.getElementById("mainCard").classList.remove("hidden");
-    document.getElementById("loginForm").classList.add("hidden");
-    document.getElementById("menuArea").classList.remove("hidden");
-    
-    document.getElementById("welcomeMsg").innerText = `${user.emp_name} ${user.position}님`;
-
-    // 권한(role)에 따른 버튼 표시 (GAS 코드와 로직 동일)
-    // admin, manager, staff 3단계로 가정
-    if (user.role === 'admin' || user.role === 'manager') {
-        document.getElementById("btnAccounting").classList.remove("hidden");
-    }
-    if (user.role === 'admin') {
-        document.getElementById("btnAdmin").classList.remove("hidden");
-    }
-}
-
-function logout() {
-    if(confirm("로그아웃 하시겠습니까?")) {
-        localStorage.removeItem('erp_user');
-        location.reload();
+        btn.classList.add("d-none"); // 버튼 숨기기
+        msg.style.display = "block";
+        msg.innerHTML = `
+            <strong>📩 전송 완료!</strong><br>
+            메일함을 확인하고 로그인 링크를 클릭하세요.<br>
+            (스팸 메일함도 확인해주세요)
+        `;
     }
 }
 </script>
