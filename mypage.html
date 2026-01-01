@@ -17,9 +17,10 @@
     .profile-card { padding: 30px; margin-bottom: 20px; display: flex; align-items: center; }
     .profile-icon { width: 70px; height: 70px; background: #e9ecef; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; margin-right: 20px; }
     
-    /* 연차 카드 */
-    .leave-card { background: white; border-radius: 12px; padding: 15px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); height: 100%; }
-    .leave-num { font-size: 1.4rem; font-weight: bold; color: #0d6efd; }
+    /* 연차 카드 스타일 (3칸으로 변경) */
+    .leave-card { background: white; border-radius: 12px; padding: 20px 15px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); height: 100%; position: relative; }
+    .leave-num { font-size: 1.6rem; font-weight: bold; color: #0d6efd; margin-top: 5px; }
+    .btn-detail { font-size: 0.75rem; position: absolute; top: 10px; right: 10px; text-decoration: none; cursor: pointer; }
     
     .nav-tabs .nav-link { color: #495057; cursor: pointer; }
     .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; }
@@ -55,11 +56,26 @@
     </div>
   </div>
 
-  <div class="row mb-4 g-2">
-    <div class="col-3"><div class="leave-card"><div class="text-muted small">총 발생</div><div class="leave-num text-dark" id="lvTotal">0</div></div></div>
-    <div class="col-3"><div class="leave-card"><div class="text-muted small">추가/조정</div><div class="leave-num text-warning" id="lvAdj">0</div></div></div>
-    <div class="col-3"><div class="leave-card"><div class="text-muted small">결재 사용</div><div class="leave-num text-danger" id="lvUsed">0</div></div></div>
-    <div class="col-3"><div class="leave-card bg-primary bg-opacity-10 border border-primary"><div class="text-primary small fw-bold">현재 잔여</div><div class="leave-num text-primary" id="lvRemain">0</div></div></div>
+  <div class="row mb-4 g-3">
+    <div class="col-4">
+        <div class="leave-card">
+            <div class="text-muted small fw-bold">사용 가능 (발생+조정)</div>
+            <div class="leave-num text-dark" id="lvTotal">0</div>
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="leave-card">
+            <div class="text-muted small fw-bold">사용 (결재 완료)</div>
+            <a class="btn-detail text-primary" onclick="showLeaveHistory()">🔍 상세</a>
+            <div class="leave-num text-danger" id="lvUsed">0</div>
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="leave-card bg-primary bg-opacity-10 border border-primary">
+            <div class="text-primary small fw-bold">현재 잔여</div>
+            <div class="leave-num text-primary" id="lvRemain">0</div>
+        </div>
+    </div>
   </div>
 
   <ul class="nav nav-tabs" id="myTab" role="tablist">
@@ -88,7 +104,7 @@
           <input type="month" class="form-control" id="salaryMonth">
           <button class="btn btn-primary" onclick="searchSalary()">조회</button>
         </div>
-        <button class="btn btn-sm btn-outline-dark hidden" id="btnPrintSalary" onclick="printSalaryPopup()">🖨️ 인쇄하기 (상세)</button>
+        <button class="btn btn-sm btn-outline-dark hidden" id="btnPrintSalary" onclick="printSalaryPopup()">🖨️ 인쇄하기</button>
       </div>
       
       <div id="salaryResult" class="hidden">
@@ -164,11 +180,29 @@
     <div class="modal-content">
       <div class="modal-header"><h5 class="modal-title fw-bold">발급 용도</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
-        <label class="form-label small text-muted">제출처 및 용도</label>
         <input type="text" id="certPurposeInput" class="form-control" placeholder="예: 금융기관 제출용">
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-primary btn-sm" onclick="runCertIssue()">미리보기 및 인쇄</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="leaveHistoryModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header bg-light">
+        <h6 class="modal-title fw-bold">📅 연차 사용 내역</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <ul class="list-group list-group-flush" id="leaveHistoryList">
+            <li class="list-group-item text-center text-muted small p-4">사용 내역이 없습니다.</li>
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
       </div>
     </div>
   </div>
@@ -183,9 +217,12 @@ let myInfo = null;
 let companyInfo = {}; 
 let currentSalaryData = null;
 let purposeModal;
+let leaveHistoryModal; // 연차 모달
 
 window.onload = async function() {
     purposeModal = new bootstrap.Modal(document.getElementById('certPurposeModal'));
+    leaveHistoryModal = new bootstrap.Modal(document.getElementById('leaveHistoryModal'));
+    
     const stored = localStorage.getItem('erp_user');
     if(!stored) { alert("로그인이 필요합니다."); location.href='index.html'; return; }
     myInfo = JSON.parse(stored);
@@ -193,7 +230,8 @@ window.onload = async function() {
     document.getElementById("salaryMonth").value = new Date().toISOString().slice(0, 7); 
 
     await Promise.all([ loadProfile(), loadCompanyInfo(), loadNotices() ]);
-    calculateLeave(); // [핵심] 연차 통합 계산 실행
+    // 연차 계산은 프로필 로드(입사일 등)가 끝난 후 실행
+    calculateLeave();
 };
 
 async function loadCompanyInfo() {
@@ -249,16 +287,15 @@ async function updateInfo() {
     if(error) alert("수정 실패"); else alert("정보가 수정되었습니다.");
 }
 
-// [핵심 로직] 연차 통합 계산: 발생(입사일) + 조정(hr_leave_adj) - 사용(결재 ref_approval)
+// [연차 통합 계산 - 단순화]
 async function calculateLeave() {
-    // 1. 발생 연차 (입사일 기준)
+    // 1. 자동 발생 (입사일 기준)
     let generatedLeave = 0;
     if (myInfo.hire_date) {
         const join = new Date(myInfo.hire_date);
         const now = new Date();
-        // 날짜 비교 (일자까지 고려)
         let diffMonths = (now.getFullYear() - join.getFullYear()) * 12 + (now.getMonth() - join.getMonth());
-        if (now.getDate() < join.getDate()) diffMonths--; // 아직 해당 일자가 안 지났으면 1달 차감
+        if (now.getDate() < join.getDate()) diffMonths--; 
         
         if (diffMonths < 12) generatedLeave = Math.max(0, diffMonths); 
         else {
@@ -267,9 +304,8 @@ async function calculateLeave() {
         }
     }
 
-    // 2. 조정 연차 (관리자 지급/차감) - DB 조회
+    // 2. 관리자 조정 (hr_leave_adj)
     let adjustedLeave = 0;
-    // hr_leave_adj 테이블이 없으면 에러 날 수 있으니 try-catch
     try {
         const { data: adjData } = await _supabase.from('hr_leave_adj').select('adj_type, days').eq('emp_id', myInfo.emp_id);
         if (adjData) {
@@ -278,28 +314,56 @@ async function calculateLeave() {
                 else adjustedLeave -= Number(adj.days);
             });
         }
-    } catch(e) { console.log("조정 테이블 없음"); }
+    } catch(e) {}
 
-    // 3. 사용 연차 (전자결재 승인 건) - DB 조회
+    // 3. 실제 사용 (결재 완료 건)
     let usedLeave = 0;
-    const { data: appData } = await _supabase
-        .from('ref_approval')
+    const { data: appData } = await _supabase.from('ref_approval')
         .select('amount')
-        .eq('drafter_id', myInfo.emp_id)
-        .eq('doc_type', '휴가')
-        .eq('status', '완료'); // '승인' or '완료' (DB 값 확인 필요)
-        
+        .eq('drafter_id', myInfo.emp_id).eq('doc_type', '휴가').eq('status', '완료'); // or '승인'
     if (appData) {
         appData.forEach(doc => usedLeave += Number(doc.amount));
     }
 
-    // 4. 최종 계산
-    const remainLeave = (generatedLeave + adjustedLeave) - usedLeave;
+    // 4. 표시 로직 변경 (사용 가능 / 사용 / 잔여)
+    const totalAvailable = generatedLeave + adjustedLeave; // 사용 가능 (발생+조정)
+    const finalRemain = totalAvailable - usedLeave; // 잔여
 
-    document.getElementById("lvTotal").innerText = generatedLeave;
-    document.getElementById("lvAdj").innerText = adjustedLeave;
-    document.getElementById("lvUsed").innerText = usedLeave;
-    document.getElementById("lvRemain").innerText = remainLeave;
+    document.getElementById("lvTotal").innerText = totalAvailable; // "사용 가능" 칸
+    document.getElementById("lvUsed").innerText = usedLeave;       // "사용" 칸
+    document.getElementById("lvRemain").innerText = finalRemain;   // "잔여" 칸
+}
+
+// [신규 기능] 연차 상세 내역 모달
+async function showLeaveHistory() {
+    const listEl = document.getElementById("leaveHistoryList");
+    listEl.innerHTML = '<li class="list-group-item text-center p-3"><div class="spinner-border spinner-border-sm"></div> 로딩중...</li>';
+    leaveHistoryModal.show();
+
+    // 결재 완료된 휴가 내역 조회
+    const { data: history } = await _supabase.from('ref_approval')
+        .select('*')
+        .eq('drafter_id', myInfo.emp_id).eq('doc_type', '휴가').eq('status', '완료')
+        .order('created_at', {ascending: false});
+
+    listEl.innerHTML = "";
+    if (!history || history.length === 0) {
+        listEl.innerHTML = '<li class="list-group-item text-center text-muted small p-4">사용 내역이 없습니다.</li>';
+    } else {
+        history.forEach(doc => {
+            // content에서 날짜 추출하거나, 제목 보여주기
+            const dateStr = new Date(doc.created_at).toLocaleDateString();
+            listEl.innerHTML += `
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-bold small">${doc.title}</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">${dateStr}</div>
+                    </div>
+                    <span class="badge bg-danger rounded-pill">-${doc.amount}일</span>
+                </li>
+            `;
+        });
+    }
 }
 
 function openCertModal() { document.getElementById('certPurposeInput').value = ""; purposeModal.show(); }
@@ -309,7 +373,7 @@ async function runCertIssue() {
     if(!purpose) return alert("용도를 입력해주세요.");
     purposeModal.hide();
     
-    // [핵심] 문서번호 자동 채번 (올해 발급 건수 + 1)
+    // 문서번호 채번
     const thisYear = new Date().getFullYear();
     const { count } = await _supabase.from('log_cert')
         .select('*', { count: 'exact', head: true })
@@ -317,9 +381,8 @@ async function runCertIssue() {
         .lte('issued_at', `${thisYear}-12-31T23:59:59`);
         
     const nextSeq = (count || 0) + 1;
-    const docNum = `인사-${thisYear}-${String(nextSeq).padStart(3, '0')}`; // 예: 인사-2026-001
+    const docNum = `인사-${thisYear}-${String(nextSeq).padStart(3, '0')}`; 
 
-    // DB 기록
     const { error } = await _supabase.from('log_cert').insert({
         emp_id: myInfo.emp_id, emp_name: myInfo.emp_name, 
         cert_type: '재직증명서', purpose: purpose, cert_num: docNum
@@ -335,7 +398,7 @@ async function runCertIssue() {
     }
 
     const certData = {
-        type: 'cert', docNum: docNum, // 채번된 번호 전달
+        type: 'cert', docNum: docNum, 
         logo: companyInfo.logo_horizontal_url || "", 
         name: myInfo.emp_name, birth: birthStr, dept: myInfo.department, pos: myInfo.position, address: myInfo.address,
         tenure: myInfo.tenureStr, purpose: purpose,
@@ -379,6 +442,7 @@ async function searchSalary() {
     const fmt = (n) => (!n || Number(n)===0) ? "" : Number(n).toLocaleString();
     const fmtFix = (n) => Number(n).toLocaleString();
 
+    // 데이터 바인딩
     document.getElementById("v_p_basic").innerText = fmtFix(data.pay_basic);
     document.getElementById("v_p_meal").innerText = fmtFix(data.pay_meal);
     document.getElementById("v_p_car").innerText = fmtFix(data.pay_car);
@@ -425,26 +489,29 @@ function printSalaryPopup() {
     printDocument(salaryData);
 }
 
-// [핵심] 인쇄 미리보기 및 스타일 조정
+// [핵심] 인쇄 미리보기 (스케일 조정 및 1페이지 강제)
 function printDocument(data) {
     const win = window.open('', '', 'width=900,height=1100');
     let contentHtml = "";
 
-    // 공통 CSS (A4 축소 및 여백 조정)
+    // 공통 CSS: A4 크기 고정 및 90% 축소(scale)로 2장 넘어감 방지
     const commonCss = `
         @page { size: A4 portrait; margin: 0; }
         @media print { 
             .no-print { display: none !important; }
             html, body { width: 210mm; height: 297mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            /* [핵심] 95% 축소해서 2장 넘어가는 것 방지 */
-            body { transform: scale(0.95); transform-origin: top left; }
+            /* [핵심] 90% 축소로 내용 잘림/넘침 방지 */
+            body { transform: scale(0.9); transform-origin: top left; width: 111%; } 
         }
         body { font-family: "Malgun Gothic", serif; margin: 0; padding: 0; background: #555; }
-        .page-wrap { width: 210mm; min-height: 297mm; padding: 15mm; background: white; margin: 20px auto; box-sizing: border-box; }
+        .page-wrap { width: 210mm; min-height: 297mm; padding: 15mm; background: white; margin: 20px auto; box-sizing: border-box; position: relative; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        /* 테이블 선 강제 적용 */
+        th, td { border: 1px solid #000 !important; }
     `;
 
     if(data.type === 'cert') {
+        // 재직증명서 HTML (테이블 선 !important 적용됨)
         contentHtml = `
         <div style="border: 2px solid #333; padding: 30px; height: 100%; position: relative; box-sizing: border-box;">
             ${data.logo ? `<img src="${data.logo}" style="position:absolute; left:20px; top:20px; height:45px;">` : ''}
@@ -453,14 +520,14 @@ function printDocument(data) {
             <div style="text-align:right; font-size: 13px; margin-bottom: 20px;">문서번호: ${data.docNum}</div>
             
             <div style="text-align:left; font-weight: bold; font-size: 16px; margin-top: 10px; margin-bottom: 5px;">1. 인적사항</div>
-            <table border="1" style="width:100%; border-color:#000;">
+            <table style="width:100%;">
                 <tr><th style="background:#f9f9f9; padding:10px;">성 명</th><td style="padding:10px;">${data.name}</td><th style="background:#f9f9f9;">생년월일</th><td style="padding:10px;">${data.birth}</td></tr>
                 <tr><th style="background:#f9f9f9; padding:10px;">소 속</th><td style="padding:10px;">${data.dept}</td><th style="background:#f9f9f9;">직 위</th><td style="padding:10px;">${data.pos}</td></tr>
                 <tr><th style="background:#f9f9f9; padding:10px;">주 소</th><td colspan="3" style="padding:10px;">${data.address}</td></tr>
             </table>
 
             <div style="text-align:left; font-weight: bold; font-size: 16px; margin-top: 20px; margin-bottom: 5px;">2. 재직사항</div>
-            <table border="1" style="width:100%; border-color:#000;">
+            <table style="width:100%;">
                 <tr><th style="background:#f9f9f9; padding:10px; width:110px;">재직기간</th><td colspan="3" style="padding:10px;">${data.tenure}</td></tr>
                 <tr><th style="background:#f9f9f9; padding:10px;">용 도</th><td colspan="3" style="padding:10px;">${data.purpose}</td></tr>
             </table>
@@ -477,20 +544,21 @@ function printDocument(data) {
         </div>`;
     } 
     else if (data.type === 'salary') {
-        // [급여명세서] 로고 상향, 도장 레이어, 날짜 줄바꿈 적용
+        // 급여명세서 HTML (제목 마진 추가)
         contentHtml = `
         <div style="padding: 10px; position: relative; height: 100%;">
             ${data.logo ? `<img src="${data.logo}" style="position:absolute; left:0px; top:-10px; height:45px;">` : ''}
-            <h1 style="text-align:center; margin-bottom: 30px; font-size: 28px; margin-top: 20px;">${data.titleDate} 급여명세서</h1>
             
-            <table style="border:1px solid #ddd; width:100%; margin-bottom:20px;">
+            <h1 style="text-align:center; margin-bottom: 30px; font-size: 28px; margin-top: 50px;">${data.titleDate} 급여명세서</h1>
+            
+            <table style="width:100%; margin-bottom:20px;">
                 <tr>
-                    <th style="background:#f5f5f5; padding:8px; border:1px solid #ddd; width:18%;">귀속연월</th><td style="padding:8px; border:1px solid #ddd; width:32%;">${data.attrDate}</td>
-                    <th style="background:#f5f5f5; padding:8px; border:1px solid #ddd; width:18%;">사원번호/명</th><td style="padding:8px; border:1px solid #ddd;">${data.empInfo}</td>
+                    <th style="background:#f5f5f5; padding:8px; width:18%;">귀속연월</th><td style="padding:8px; width:32%;">${data.attrDate}</td>
+                    <th style="background:#f5f5f5; padding:8px; width:18%;">사원번호/명</th><td style="padding:8px;">${data.empInfo}</td>
                 </tr>
                 <tr>
-                    <th style="background:#f5f5f5; padding:8px; border:1px solid #ddd;">지급일자</th><td style="padding:8px; border:1px solid #ddd;">${data.payDate}</td>
-                    <th style="background:#f5f5f5; padding:8px; border:1px solid #ddd;">소속/직급</th><td style="padding:8px; border:1px solid #ddd;">${data.dept} / ${data.pos}</td>
+                    <th style="background:#f5f5f5; padding:8px;">지급일자</th><td style="padding:8px;">${data.payDate}</td>
+                    <th style="background:#f5f5f5; padding:8px;">소속/직급</th><td style="padding:8px;">${data.dept} / ${data.pos}</td>
                 </tr>
             </table>
 
@@ -498,27 +566,27 @@ function printDocument(data) {
                 <div style="flex:1;">
                     <div style="text-align:center; font-weight:bold; padding:5px; border-bottom:2px solid #0d47a1; color:#0d47a1; margin-bottom:5px;">지급내역</div>
                     <table style="width:100%;">
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">기본급</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.p_basic}</td></tr>
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">식 대</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.p_meal}</td></tr>
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">차량유지비</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.p_car}</td></tr>
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">직책수당</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.p_pos}</td></tr>
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">근속수당</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.p_svc}</td></tr>
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">연장수당</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.p_ot}</td></tr>
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">육아수당</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.p_child}</td></tr>
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">상여금</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.p_bonus}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">기본급</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.p_basic}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">식 대</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.p_meal}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">차량유지비</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.p_car}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">직책수당</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.p_pos}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">근속수당</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.p_svc}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">연장수당</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.p_ot}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">육아수당</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.p_child}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">상여금</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.p_bonus}</td></tr>
                     </table>
                 </div>
                 <div style="flex:1;">
                     <div style="text-align:center; font-weight:bold; padding:5px; border-bottom:2px solid #b71c1c; color:#b71c1c; margin-bottom:5px;">공제내역</div>
                     <table style="width:100%;">
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">국민연금</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.d_pen}</td></tr>
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">건강보험</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.d_hlt}</td></tr>
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">장기요양</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.d_care}</td></tr>
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">고용보험</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.d_emp}</td></tr>
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">소득세</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.d_inc}</td></tr>
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">지방소득세</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.d_loc}</td></tr>
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">가불금</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.d_adv}</td></tr>
-                        <tr><td style="padding:5px; border-bottom:1px solid #eee;">출자금</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee;">${data.d_cap}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">국민연금</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.d_pen}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">건강보험</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.d_hlt}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">장기요양</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.d_care}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">고용보험</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.d_emp}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">소득세</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.d_inc}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">지방소득세</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.d_loc}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">가불금</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.d_adv}</td></tr>
+                        <tr><td style="padding:5px; border-bottom:1px solid #eee; border:none !important;">출자금</td><td style="text-align:right; padding:5px; border-bottom:1px solid #eee; border:none !important;">${data.d_cap}</td></tr>
                     </table>
                 </div>
             </div>
@@ -526,10 +594,10 @@ function printDocument(data) {
             <div style="display:flex; margin-top:40px; border-top:2px solid #888; padding-top:20px; align-items:center;">
                 <div style="flex:1; font-size:14px; color:#555; padding-left:20px;">귀하의 노고에 진심으로 감사드립니다.</div>
                 <div style="width:300px;">
-                    <table style="width:100%; border-collapse:collapse;">
-                        <tr><th style="background:#f9f9f9; padding:8px; border:1px solid #ddd;">지급합계</th><td style="text-align:right; padding:8px; border:1px solid #ddd; font-weight:bold;">${data.p_total}</td></tr>
-                        <tr><th style="background:#f9f9f9; padding:8px; border:1px solid #ddd;">공제합계</th><td style="text-align:right; padding:8px; border:1px solid #ddd; font-weight:bold;">${data.d_total}</td></tr>
-                        <tr><th style="background:#f0f0f0; padding:8px; border:1px solid #555; border-bottom:2px solid #555;">실지급액</th><td style="text-align:right; padding:8px; border:1px solid #555; border-bottom:2px solid #555; font-weight:bold; background:#fff;">${data.net}</td></tr>
+                    <table style="width:100%;">
+                        <tr><th style="background:#f9f9f9; padding:8px;">지급합계</th><td style="text-align:right; padding:8px; font-weight:bold;">${data.p_total}</td></tr>
+                        <tr><th style="background:#f9f9f9; padding:8px;">공제합계</th><td style="text-align:right; padding:8px; font-weight:bold;">${data.d_total}</td></tr>
+                        <tr><th style="background:#f0f0f0; padding:8px; border-bottom:2px solid #555;">실지급액</th><td style="text-align:right; padding:8px; border-bottom:2px solid #555; font-weight:bold; background:#fff;">${data.net}</td></tr>
                     </table>
                 </div>
             </div>
