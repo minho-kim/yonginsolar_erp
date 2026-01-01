@@ -159,7 +159,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let myInfo = null;
-let companyInfo = {}; // 회사 정보 저장
+let companyInfo = {}; 
 let currentSalaryData = null;
 let purposeModal;
 
@@ -173,19 +173,22 @@ window.onload = async function() {
     document.getElementById("salaryMonth").value = now.toISOString().slice(0, 7); 
 
     await Promise.all([ loadProfile(), loadCompanyInfo(), loadNotices() ]);
-    // 연차 계산은 프로필 로드 후에 실행
     calculateLeave();
 };
 
-// 회사 정보 가져오기 (이사장, 직인 등)
 async function loadCompanyInfo() {
     const { data } = await _supabase.from('ref_company_info').select('*');
     if(data) {
         data.forEach(item => { companyInfo[item.key] = item.value; });
     }
+    
+    // [추가 기능] 이사장 이름 자동 조회 (ref_employees 테이블에서 '이사장' 직책 검색)
+    const { data: boss } = await _supabase.from('ref_employees').select('emp_name').eq('position', '이사장').single();
+    if(boss) {
+        companyInfo.chairman_name = boss.emp_name; // DB에 있는 이름으로 덮어쓰기
+    }
 }
 
-// 프로필 및 정보 로드
 async function loadProfile() {
     const { data, error } = await _supabase.from('ref_employees').select('*').eq('emp_id', myInfo.emp_id).single();
     if(error) return;
@@ -198,7 +201,6 @@ async function loadProfile() {
     document.getElementById("dspDept").innerText = data.department;
     document.getElementById("dspJoin").innerText = data.hire_date || '-';
     
-    // 재직기간 계산
     if(data.hire_date) {
         const join = new Date(data.hire_date);
         const diff = new Date() - join;
@@ -206,7 +208,7 @@ async function loadProfile() {
         const months = Math.floor((diff % (1000*60*60*24*365)) / (1000*60*60*24*30));
         const days = Math.floor((diff % (1000*60*60*24*30)) / (1000*60*60*24));
         document.getElementById("dspTenure").innerText = `${years}년 ${months}개월 ${days}일`;
-        myInfo.tenureStr = `${data.hire_date}~현재 (${years}년 ${months}개월 ${days}일)`; // 증명서용
+        myInfo.tenureStr = `${data.hire_date}~현재 (${years}년 ${months}개월 ${days}일)`;
     }
 
     document.getElementById("myBank").value = data.bank_name || "";
@@ -235,32 +237,37 @@ async function updateInfo() {
     if(error) alert("수정 실패"); else alert("정보가 수정되었습니다.");
 }
 
-// [기능: 연차 자동 계산] 입사일 기준 1개월 = 1개
+// [수정된 연차 계산 로직] 입사일의 '일(Day)'까지 고려
 async function calculateLeave() {
-    // 1. 발생 연차 계산 (입사일 기준)
     let generatedLeave = 0;
+    
     if (myInfo.hire_date) {
         const join = new Date(myInfo.hire_date);
         const now = new Date();
-        // 개월 수 차이 계산
-        const months = (now.getFullYear() - join.getFullYear()) * 12 + (now.getMonth() - join.getMonth());
-        // 1년 미만: 1개월 개근 시 1일 (단순화하여 개월 수만큼 부여)
-        // 1년 이상: 15일 + @ (일단 1년차 15개 로직 적용)
-        if (months < 12) {
-            generatedLeave = months; 
+        
+        // 년, 월 차이 계산
+        let diffMonths = (now.getFullYear() - join.getFullYear()) * 12 + (now.getMonth() - join.getMonth());
+        
+        // [핵심] 현재 날짜(일)가 입사일의 날짜보다 이전이면 아직 한 달 안 찬 것으로 간주하여 1개월 뺌
+        // 예: 입사 11/20, 오늘 1/19 -> 2개월 차이지만 20일 안 지났으니 1개월로 계산
+        if (now.getDate() < join.getDate()) {
+            diffMonths--;
+        }
+
+        // 1년 미만: 만근 월수만큼 부여
+        if (diffMonths < 12) {
+            generatedLeave = Math.max(0, diffMonths); // 음수 방지
         } else {
-            // 2년마다 1일 추가 로직은 추후 구현, 일단 기본 15개 + 근속년수
-            const years = Math.floor(months / 12);
+            // 1년 이상: 15개 + 근속년수에 따른 가산 (단순화)
+            const years = Math.floor(diffMonths / 12);
             generatedLeave = 15 + Math.floor((years - 1) / 2);
         }
     }
 
-    // 2. 사용 연차 (hr_leave 테이블에서 가져옴)
     let usedLeave = 0;
     const { data } = await _supabase.from('hr_leave').select('used_days').eq('emp_id', myInfo.emp_id).single();
     if (data) usedLeave = Number(data.used_days);
 
-    // 3. 잔여 연차
     const remainLeave = generatedLeave - usedLeave;
 
     document.getElementById("lvTotal").innerText = generatedLeave;
@@ -268,7 +275,6 @@ async function calculateLeave() {
     document.getElementById("lvRemain").innerText = remainLeave;
 }
 
-// [기능: 재직증명서 발급]
 function openCertModal() {
     document.getElementById('certPurposeInput').value = "";
     purposeModal.show();
@@ -279,29 +285,26 @@ function runCertIssue() {
     if(!purpose) return alert("용도를 입력해주세요.");
     purposeModal.hide();
     
-    // 생년월일 추출 (주민번호 앞 6자리 + 뒤 1자리로 성별/연대 유추 가능하지만 일단 앞 6자리 파싱)
     let birthStr = "-";
     if (myInfo.rrn) {
-        // 예: 840914-1...
         const y = myInfo.rrn.substring(0,2);
         const m = myInfo.rrn.substring(2,4);
         const d = myInfo.rrn.substring(4,6);
-        // 1900년대인지 2000년대인지 구분 (뒷자리 첫글자로)
-        // 일단 단순하게 50보다 크면 1900, 아니면 2000으로 가정 (약식)
         const prefix = Number(y) > 30 ? "19" : "20"; 
         birthStr = `${prefix}${y}년 ${m}월 ${d}일`;
     }
 
     const certData = {
+        logo: companyInfo.logo_horizontal_url || "", // [추가] 가로 로고 URL
         name: myInfo.emp_name,
         birth: birthStr,
         dept: myInfo.department,
         pos: myInfo.position,
         address: myInfo.address,
-        tenure: myInfo.tenureStr, // 위에서 계산한 문자열
+        tenure: myInfo.tenureStr, 
         purpose: purpose,
         today: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }),
-        chairman: companyInfo.chairman_name || "이사장",
+        chairman: companyInfo.chairman_name || "이사장", // 자동 조회된 이름 사용
         compName: companyInfo.company_name,
         compAddr: companyInfo.company_address,
         contact: companyInfo.company_contact,
@@ -311,23 +314,35 @@ function runCertIssue() {
     printDocument('cert', certData);
 }
 
-// 인쇄 팝업
 function printDocument(type, data) {
     const win = window.open('', '', 'width=900,height=1100');
     let html = `
     <html><head><title>인쇄</title>
     <style>
       body{ font-family:"Malgun Gothic", serif; padding: 40px; }
-      .cert-container { border: 2px solid #fff; padding: 20px; text-align: center; }
+      .cert-container { border: 2px solid #fff; padding: 20px; text-align: center; position: relative; }
+      
+      /* [추가] 좌측 상단 로고 스타일 */
+      .top-logo { position: absolute; left: 0; top: 0; height: 40px; } 
+
       h1 { font-size: 32px; font-weight: bold; margin-bottom: 10px; }
-      h2 { font-size: 24px; text-decoration: underline; margin: 40px 0; }
-      .tbl-title { text-align: left; font-weight: bold; font-size: 16px; margin-top: 20px; margin-bottom: 5px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 14px; }
-      th, td { border: 1px solid #000; padding: 10px; }
-      th { background: #f9f9f9; width: 100px; text-align: center; }
-      .footer { margin-top: 60px; font-size: 14px; line-height: 1.6; }
-      .chairman-sign { font-size: 24px; font-weight: bold; margin-top: 40px; position: relative; display: inline-block; }
+      h2 { font-size: 28px; text-decoration: underline; margin: 40px 0; font-weight: bold; }
+      
+      .doc-num { text-align: right; font-size: 13px; margin-bottom: 30px; }
+      
+      /* [수정] 섹션 제목 위치 조정 */
+      .tbl-title { text-align: left; font-weight: bold; font-size: 16px; margin-top: 10px; margin-bottom: 5px; }
+      
+      table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 15px; }
+      th, td { border: 1px solid #000; padding: 12px; }
+      th { background: #f9f9f9; width: 110px; text-align: center; }
+      
+      /* [수정] 푸터 폰트 작게 */
+      .footer { margin-top: 80px; font-size: 12px; line-height: 1.6; color: #555; }
+      
+      .chairman-sign { font-size: 24px; font-weight: bold; margin-top: 50px; position: relative; display: inline-block; }
       .seal-img { position: absolute; right: -50px; top: -20px; width: 80px; opacity: 0.8; }
+      
       @media print { .no-print { display: none; } }
     </style>
     </head><body>`;
@@ -335,13 +350,16 @@ function printDocument(type, data) {
     if(type === 'cert') {
         html += `
         <div class="cert-container">
-            <div style="font-size:14px; text-align:left; color:#555;">${data.compName}<br>Yongin Solar Power Cooperative</div>
+            ${data.logo ? `<img src="${data.logo}" class="top-logo">` : ''}
             
-            <div class="tbl-title">1. 인적사항</div>
+            <div style="font-size:14px; text-align:left; margin-top: 50px; color:#555;">${data.compName}<br>Yongin Solar Power Cooperative</div>
             <div style="text-align:right; font-size:12px; margin-bottom:5px;">www.yonginsolar.kr</div>
-            <h2>재 직 증 명 서</h2>
-            <div style="text-align:right; font-size:12px; margin-bottom:10px;">문서번호: 인사-${new Date().getFullYear()}-001</div>
             
+            <h2>재 직 증 명 서</h2>
+            
+            <div class="doc-num">문서번호: 인사-${new Date().getFullYear()}-001</div>
+
+            <div class="tbl-title">1. 인적사항</div>
             <table>
                 <tr>
                     <th>성 명</th><td>${data.name}</td>
@@ -366,7 +384,7 @@ function printDocument(type, data) {
                 </tr>
             </table>
 
-            <div style="margin-top: 50px; font-size: 18px;">위와 같이 재직하고 있음을 증명합니다.</div>
+            <div style="margin-top: 60px; font-size: 18px;">위와 같이 재직하고 있음을 증명합니다.</div>
             
             <div style="margin-top: 40px; font-size: 18px;">${data.today}</div>
             
@@ -381,10 +399,7 @@ function printDocument(type, data) {
             </div>
         </div>
         `;
-    }
-    
-    // 급여명세서 인쇄 (기존 로직 유지)
-    else if(type === 'salary') {
+    } else if(type === 'salary') {
         html += `
             <h2 style="text-decoration:none; border-bottom:2px solid #333; padding-bottom:10px;">${data.yearMonth} 급여명세서</h2>
             <table style="margin-top:30px;">
@@ -404,14 +419,13 @@ function printDocument(type, data) {
     win.document.close();
 }
 
-// 급여, 공지사항 로딩 함수 (기존 유지)
 async function searchSalary() {
     const ym = document.getElementById("salaryMonth").value;
     if(!ym) return alert("월을 선택하세요.");
     const { data, error } = await _supabase.from('hr_salary').select('*').eq('emp_id', myInfo.emp_id).eq('year_month', ym).single();
     if(!data) { alert("내역이 없습니다."); return; }
     currentSalaryData = data;
-    currentSalaryData.yearMonth = ym; // 인쇄용
+    currentSalaryData.yearMonth = ym; 
     document.getElementById("salaryResult").classList.remove("hidden");
     document.getElementById("btnPrintSalary").classList.remove("hidden");
     document.getElementById("sl_ym").innerText = ym;
