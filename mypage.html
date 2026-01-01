@@ -567,43 +567,67 @@ function openCertModal() {
     purposeModal.show(); 
 }
 
+// [수정] 증명서 발급 (주민번호 복호화 로직 추가)
 async function runCertIssue() {
     let purpose = document.getElementById('certPurposeSelect').value;
     if(purpose === '기타') purpose = document.getElementById('certPurposeEtc').value;
     if(!purpose) return alert("용도를 입력해주세요.");
+    
     purposeModal.hide();
     
-    const thisYear = new Date().getFullYear();
-    const { count } = await _supabase.from('log_cert')
-        .select('*', { count: 'exact', head: true })
-        .gte('issued_at', `${thisYear}-01-01T00:00:00`)
-        .lte('issued_at', `${thisYear}-12-31T23:59:59`);
-        
-    const nextSeq = (count || 0) + 1;
-    const docNum = `인사-${thisYear}-${String(nextSeq).padStart(3, '0')}`; 
-
-    const { error } = await _supabase.from('log_cert').insert({
-        emp_id: myInfo.emp_id, emp_name: myInfo.emp_name, 
-        cert_type: '재직증명서', purpose: purpose, cert_num: docNum
+    // 1. [보안] 주민번호 복호화 가져오기 (RPC 호출)
+    let realRRN = "-";
+    const { data: decryptedRRN, error: rrnError } = await _supabase.rpc('get_decrypted_rrn', {
+        p_emp_id: myInfo.emp_id
     });
-    if(error) console.error(error);
 
-    let cleanAddr = (companyInfo.company_address || "").replace(/용인모두의\s?햇빛협동조합/g, '').trim();
+    if (!rrnError && decryptedRRN) {
+        realRRN = decryptedRRN; // 복호화 성공 시 실명번호 사용
+    } else {
+        console.log("RRN 로드 실패 또는 데이터 없음"); // 실패 시 빈칸 또는 마스킹
+    }
+
+    // 2. 생년월일 포맷팅 (주민번호 앞 6자리 활용)
     let birthStr = "-";
-    if (myInfo.rrn) {
-        const y = myInfo.rrn.substring(0,2), m = myInfo.rrn.substring(2,4), d = myInfo.rrn.substring(4,6);
-        const prefix = Number(y) > 30 ? "19" : "20";
+    if (realRRN && realRRN.length >= 6) {
+        const y = realRRN.substring(0,2);
+        const m = realRRN.substring(2,4);
+        const d = realRRN.substring(4,6);
+        // 7번째 자리(성별코드)로 1900/2000년대 구분
+        const gender = realRRN.includes('-') ? realRRN.split('-')[1].substring(0,1) : realRRN.substring(6,7);
+        const prefix = (gender === '1' || gender === '2') ? "19" : "20";
         birthStr = `${prefix}${y}년 ${m}월 ${d}일`;
     }
 
+    // 3. 문서 번호 따기
+    const thisYear = new Date().getFullYear();
+    const { count } = await _supabase.from('log_cert')
+        .select('*', { count: 'exact', head: true })
+        .gte('issued_at', `${thisYear}-01-01T00:00:00`);
+        
+    const docNum = `인사-${thisYear}-${String((count||0) + 1).padStart(3, '0')}`; 
+
+    // 4. 발급 로그 저장
+    await _supabase.from('log_cert').insert({
+        emp_id: myInfo.emp_id, emp_name: myInfo.emp_name, 
+        cert_type: '재직증명서', purpose: purpose, cert_num: docNum
+    });
+
+    let cleanAddr = (companyInfo.company_address || "").replace(/용인모두의\s?햇빛협동조합/g, '').trim();
+
+    // 5. 인쇄 데이터 생성
     const certData = {
         type: 'cert', docNum: docNum, 
         logo: companyInfo.logo_horizontal_url || "", 
-        name: myInfo.emp_name, birth: birthStr, dept: myInfo.department, pos: myInfo.position, address: myInfo.address,
+        name: myInfo.emp_name, 
+        birth: birthStr,  // 계산된 생년월일
+        rrn: realRRN,     // [중요] 복호화된 주민번호 전달 (필요 시 템플릿에 추가)
+        dept: myInfo.department, pos: myInfo.position, address: myInfo.address,
         tenure: myInfo.tenureStr, purpose: purpose,
         today: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }),
         chairman: companyInfo.chairman_name || "이사장", compName: companyInfo.company_name, compAddr: cleanAddr, contact: companyInfo.company_contact, seal: companyInfo.seal_url
     };
+    
     printDocument(certData);
 }
 
