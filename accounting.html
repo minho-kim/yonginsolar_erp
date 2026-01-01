@@ -215,25 +215,67 @@ async function loadCards() {
 }
 
 // 2. 대시보드 (ac_journal: Debit/Credit 구조 반영)
+// 2. 대시보드 (수정됨: 차변/대변 논리에 따른 정확한 계산)
 async function refreshDashboard() {
+    // 1. 전표 내역 가져오기
     const { data } = await _supabase.from('ac_journal').select('*');
-    let rev=0, exp=0, ast=0;
     
-    if(data) {
+    let rev = 0; // 매출 (수익)
+    let exp = 0; // 비용
+    let ast = 0; // 자산 (현재 통장+현금+미수금 등 총합)
+    let liab = 0; // 부채
+    let cap = 0; // 자본 (출자금 등)
+
+    if (data) {
         data.forEach(r => {
-            const amt = Number(r.Debit || 0) + Number(r.Credit || 0); // 금액 (단순 합산)
-            if(r.Type === '매출') rev += amt;
-            else if(r.Type === '비용') exp += amt;
-            else if(r.Type === '자산') ast += amt;
+            // 숫자형으로 변환 (없으면 0)
+            const debit = Number(r.Debit || 0);  // 차변
+            const credit = Number(r.Credit || 0); // 대변
+
+            // 회계 등식에 따른 집계
+            if (r.Type === '매출') {
+                rev += credit; // 수익은 대변에서 발생
+            } 
+            else if (r.Type === '비용') {
+                exp += debit; // 비용은 차변에서 발생
+            } 
+            else if (r.Type === '자산') {
+                ast += (debit - credit); // 자산 = 차변(증가) - 대변(감소)
+            }
+            else if (r.Type === '부채') {
+                liab += (credit - debit); // 부채 = 대변(증가) - 차변(감소)
+            }
+            else if (r.Type === '자본') {
+                cap += (credit - debit); // 자본 = 대변(증가) - 차변(감소)
+            }
         });
     }
+
+    // 화면 표시
     document.getElementById("valRev").innerText = rev.toLocaleString();
     document.getElementById("valExp").innerText = exp.toLocaleString();
-    document.getElementById("valAst").innerText = ast.toLocaleString();
     
-    // 부가세 추정 (간이)
+    // [수정] 단순 총액이 아니라 '현재 잔액' 개념으로 표시
+    document.getElementById("valAst").innerText = ast.toLocaleString(); 
+
+    // 부가세 추정 (매출의 10% - 비용의 10% 단순 추산)
+    // 정확하려면 전표마다 vat 컬럼을 합산해야 하지만 일단 약식 유지
     document.getElementById("valVat").innerText = Math.round((rev - exp) * 0.1).toLocaleString();
-    document.getElementById("valCash").innerText = (rev - exp).toLocaleString();
+
+    // [핵심 수정] 통장 잔고(추정) -> 당기 순이익(손실)로 명칭 변경 또는 실제 현금성 자산 표시
+    // 여기서는 국장님이 헷갈려 하셨던 '마이너스'의 정체인 '순이익'을 보여주는 게 맞습니다.
+    const netIncome = rev - exp;
+    const cashLabel = document.querySelector("#valCash").previousElementSibling;
+    const cashValue = document.getElementById("valCash");
+
+    if (netIncome >= 0) {
+        cashLabel.innerHTML = "📈 당기 순이익";
+        cashValue.className = "text-primary fw-bold"; // 파란색
+    } else {
+        cashLabel.innerHTML = "📉 당기 순손실"; // 적자임을 명시
+        cashValue.className = "text-danger fw-bold"; // 빨간색
+    }
+    cashValue.innerText = netIncome.toLocaleString();
 }
 
 // 3. 전표 저장 (ac_journal)
