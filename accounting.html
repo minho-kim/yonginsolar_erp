@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>회계 관리</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <style>
+    body { background-color: #f8f9fa; padding: 20px; font-family: 'Segoe UI', sans-serif; }
+    .main-container { max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); padding: 25px; }
+    
+    /* 카드 스타일 */
+    .stat-card { flex: 1; padding: 15px; border-radius: 12px; text-align: center; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .bg-rev { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+    .bg-exp { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+    .bg-ast { background: linear-gradient(135deg, #3498db, #2980b9); }
+    
+    .sub-card { flex: 1; padding: 10px; border-radius: 10px; text-align: center; border: 1px solid #eee; background-color: #fff; }
+    .text-vat { color: #d63384; font-weight: bold; } 
+    .text-cash { color: #0d6efd; font-weight: bold; }
+    
+    .btn-report { width: 100%; margin-bottom: 20px; font-weight: bold; border-radius: 10px; }
+    .readonly-input { background-color: #f8f9fa; cursor: pointer; }
+    
+    /* 리포트 스타일 */
+    #reportContent { font-family: "Malgun Gothic", serif; font-size: 13px; }
+    .tbl { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    .tbl th, .tbl td { border: 1px solid #ddd; padding: 6px; }
+    .tbl th { background: #f8f9fa; text-align: center; font-weight: bold; }
+    .amt { text-align: right; }
+    .sec { font-weight: bold; margin: 15px 0 5px 0; background: #eee; padding: 5px; }
+    
+    .vat-wrapper { display: flex; align-items: center; justify-content: flex-end; margin-bottom: 5px; }
+    .search-list-item:hover { background-color: #e9ecef; cursor: pointer; }
+    .special-box { background-color: #f1f3f5; border-radius: 8px; padding: 10px; margin-bottom: 15px; border-left: 4px solid #6c757d; }
+    .asset-box { background-color: #e8f5e9; border-radius: 8px; padding: 10px; margin-bottom: 15px; border-left: 4px solid #28a745; }
+    .history-row { font-size: 0.9rem; }
+    
+    .ime-kr { ime-mode: active; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div class="main-container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold m-0">📒 회계 관리</h4>
+    <div>
+      <button class="btn btn-outline-secondary btn-sm me-1" onclick="openInfoModal()">⚙️ 설정</button>
+      <button class="btn btn-outline-secondary btn-sm" onclick="location.href='index.html'">🏠 메뉴로</button>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 mb-2">
+    <div class="stat-card bg-rev"><div>매출</div><div class="fw-bold" id="valRev">0</div></div>
+    <div class="stat-card bg-exp"><div>비용</div><div class="fw-bold" id="valExp">0</div></div>
+    <div class="stat-card bg-ast"><div>자산</div><div class="fw-bold" id="valAst">0</div></div>
+  </div>
+  <div class="d-flex gap-2 mb-4">
+    <div class="sub-card"><div>💰 통장 잔고 (추정)</div><div class="text-cash" id="valCash">0</div></div>
+    <div class="sub-card"><div>🧾 부가세 예상</div><div class="text-vat" id="valVat">0</div></div>
+  </div>
+  <button class="btn btn-outline-dark btn-report" type="button" onclick="printReport()">🖨️ 결산 보고서 생성</button>
+
+  <ul class="nav nav-tabs mb-4" id="accTab" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabForm">📝 전표입력</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSync">🔄 자동연동</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabHistory" onclick="loadHistory()">🕒 최근전표</button></li>
+  </ul>
+
+  <div class="tab-content">
+    
+    <div class="tab-pane fade show active" id="tabForm">
+      <form id="erpForm" onsubmit="handleFormSubmit(event)">
+        <div class="row mb-3">
+          <div class="col-6">
+            <label class="small text-muted">날짜</label>
+            <input type="date" class="form-control" name="inputDate" id="dateField" required>
+          </div>
+          <div class="col-6">
+            <label class="small text-muted">프로젝트</label>
+            <select class="form-select" name="inputProject" id="projectSelect">
+              <option value="본사">본사</option><option value="1호기">1호기 발전소</option><option value="2호기">2호기 발전소</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mb-3 p-2 border rounded bg-light">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <label class="small text-muted fw-bold">거래 구분</label>
+            <span class="badge bg-secondary" id="modeBadge">일반</span>
+          </div>
+          <div class="d-flex gap-2">
+             <input type="radio" class="btn-check" name="settleMode" id="smNorm" value="" checked onchange="toggleSettleMode()">
+             <label class="btn btn-sm btn-outline-secondary flex-fill" for="smNorm">일반거래</label>
+
+             <input type="radio" class="btn-check" name="settleMode" id="smPre" value="pre_expense" onchange="toggleSettleMode()">
+             <label class="btn btn-sm btn-outline-primary flex-fill" for="smPre">설립전/개인</label>
+
+             <input type="radio" class="btn-check" name="settleMode" id="smReim" value="reimburse" onchange="toggleSettleMode()">
+             <label class="btn btn-sm btn-outline-danger flex-fill" for="smReim">정산지급</label>
+          </div>
+          
+          <div id="payerInputDiv" class="mt-2" style="display:none;">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text fw-bold" id="payerLabel">이름</span>
+              <input type="text" class="form-control ime-kr" name="payerName" id="payerName" placeholder="홍길동">
+            </div>
+            <div id="preExpenseHelp" class="form-text x-small text-primary hidden"> * 개인 카드로 지출한 비용/자산 (미지급금 처리) </div>
+            <div id="reimburseHelp" class="form-text x-small text-danger hidden"> * 미지급금을 개인에게 이체하여 정산함 </div>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <div class="btn-group w-100" role="group">
+            <input type="radio" class="btn-check" name="inputType" id="t1" value="매출" onchange="handleTypeChange()"><label class="btn btn-outline-success" for="t1">매출</label>
+            <input type="radio" class="btn-check" name="inputType" id="t2" value="비용" checked onchange="handleTypeChange()"><label class="btn btn-outline-danger" for="t2">비용</label>
+            <input type="radio" class="btn-check" name="inputType" id="t3" value="자산" onchange="handleTypeChange()"><label class="btn btn-outline-primary" for="t3">자산</label>
+          </div>
+          <div id="capitalNotice" class="alert alert-secondary mt-2 p-2 small text-center hidden"><strong>ℹ️ 출자금 반환 전용</strong><input type="hidden" name="capitalType" value="out"></div>
+        </div>
+
+        <div class="mb-3">
+          <label class="small text-muted">계정과목</label>
+          <div class="input-group">
+            <input type="text" class="form-control readonly-input ime-kr" id="displayAccount" placeholder="클릭하여 검색" readonly onclick="openSelModal()">
+            <button class="btn btn-secondary" type="button" onclick="openSelModal()">🔍</button>
+            <button class="btn btn-outline-secondary" type="button" id="btnAddAccount" onclick="openAddModal()">➕</button>
+          </div>
+          <input type="hidden" name="inputItem" id="hiddenItem">
+          <input type="hidden" name="inputStandard" id="hiddenStandard"> <input type="hidden" name="specialMode" id="specialMode">
+        </div>
+
+        <div id="dynamicArea"></div>
+
+        <div class="mb-3"><label class="small text-muted">적요</label><input type="text" class="form-control ime-kr" name="inputDesc" id="inputDesc" required></div>
+        <div class="mb-2"><label class="small text-muted">금액 (공급가+세액 합계)</label><input type="number" class="form-control form-control-lg" name="inputAmount" id="inputAmount" placeholder="0" required min="0"></div>
+        
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center" id="cardOptionDiv" style="flex:1;">
+             <div class="form-check form-switch me-2"><input class="form-check-input" type="checkbox" id="payMethod" name="payMethod" value="card" onchange="toggleCardSelect()"><label class="form-check-label small" for="payMethod">💳 카드</label></div>
+             <select class="form-select form-select-sm hidden" id="cardSelect" name="selectedCardName" style="max-width: 150px;"><option value="">선택</option></select>
+           </div>
+           <div class="vat-wrapper"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="vatCheck" name="vatCheck" checked><label class="form-check-label small" for="vatCheck">부가세포함</label></div></div>
+        </div>
+        
+        <button type="submit" class="btn btn-primary w-100 btn-lg shadow-sm mt-3" id="submitBtn">저장하기</button>
+      </form>
+    </div>
+
+    <div class="tab-pane fade" id="tabSync">
+      <div class="card p-3 mb-2 border" style="border-left: 5px solid #0dcaf0;">
+         <div class="d-flex justify-content-between align-items-center">
+           <div><h6 class="fw-bold mb-1">💼 급여 및 비용 연동</h6><small class="text-muted">급여대장(HR) → 회계전표</small></div>
+           <div class="d-flex align-items-center gap-2">
+               <input type="month" id="salaryMonth" class="form-control form-control-sm" style="width: 130px;">
+               <button class="btn btn-info btn-sm text-white" onclick="syncSalary()">실행</button>
+           </div>
+         </div>
+      </div>
+      <div class="alert alert-light text-center small text-muted">
+        출자금/배당금/결산 연동 기능은<br>다음 업데이트(v1.3.0)에 제공됩니다.
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tabHistory">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="fw-bold m-0">최근 전표 10건</h6>
+          <button class="btn btn-sm btn-outline-primary" onclick="loadHistory()">🔄 새로고침</button>
+      </div>
+      <div id="historyList" class="list-group"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="selectModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><div class="modal-header p-2"><h6 class="m-0">계정과목 검색</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body p-2"><input type="text" class="form-control mb-2 ime-kr" id="accountSearchInput" placeholder="검색어 입력" onkeyup="filterAccounts()"><div class="list-group" id="accountSearchResult" style="height:300px;overflow-y:auto;"></div></div></div></div></div>
+
+<div class="modal fade" id="addModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">항목 추가</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="text" class="form-control mb-2" id="addMediumInput" placeholder="중분류 (예: 운영비)"><input type="text" class="form-control" id="addName" placeholder="항목명 (예: 회식비)"></div><div class="modal-footer"><button class="btn btn-primary" onclick="confAdd()">추가</button></div></div></div></div>
+
+<div class="modal fade" id="reportModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">📄 보고서 미리보기</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="reportContent"></div><div class="modal-footer"><button class="btn btn-primary" onclick="realPrint()">🖨️ 인쇄</button></div></div></div></div>
+
+<div class="modal fade" id="infoModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">⚙️ 조합 정보 설정</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="infoForm"><div class="mb-2"><label>조합명</label><input type="text" class="form-control" id="orgName"></div><div class="mb-3"><label>설립일</label><input type="date" class="form-control" id="estDate"></div></form></div><div class="modal-footer"><button class="btn btn-primary" onclick="saveInfo()">저장</button></div></div></div></div>
+
+<script>
+// [설정] 수퍼베이스 연결
+const SUPABASE_URL = 'https://ifdqlwxgqgsvnawmhlfc.supabase.co'; 
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmZHFsd3hncWdzdm5hd21obGZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxODQ3NDIsImV4cCI6MjA4Mjc2MDc0Mn0.UKUvMOl58KuDH24seC3oSgla7mK5lr-vXjqtpalnl6k';
+const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let mData=[], cardData=[]; // 계정과목, 카드 데이터
+let selectModal, reportModal, addModal, infoModal;
+
+window.onload = async function() {
+    selectModal = new bootstrap.Modal(document.getElementById('selectModal'));
+    reportModal = new bootstrap.Modal(document.getElementById('reportModal'));
+    addModal = new bootstrap.Modal(document.getElementById('addModal'));
+    infoModal = new bootstrap.Modal(document.getElementById('infoModal'));
+
+    document.getElementById('dateField').valueAsDate = new Date();
+    document.getElementById('salaryMonth').value = new Date().toISOString().slice(0, 7);
+
+    await Promise.all([ loadMasterData(), loadCards(), refreshDashboard() ]);
+};
+
+// 1. 기초 데이터 로드 (계정과목, 카드)
+async function loadMasterData() {
+    const { data } = await _supabase.from('acc_accounts').select('*').order('name');
+    if(data) mData = data;
+}
+async function loadCards() {
+    const { data } = await _supabase.from('acc_cards').select('*');
+    if(data) {
+        cardData = data;
+        const sel = document.getElementById("cardSelect");
+        sel.innerHTML = "<option value=''>선택</option>";
+        cardData.forEach(c => sel.add(new Option(c.card_name, c.card_name)));
+    }
+}
+
+// 2. 대시보드 새로고침 (전표 집계)
+async function refreshDashboard() {
+    const { data } = await _supabase.from('acc_transactions').select('*');
+    let rev=0, exp=0, ast=0, vat=0;
+    
+    if(data) {
+        data.forEach(r => {
+            const amt = Number(r.amount);
+            const tax = Number(r.vat);
+            if(r.type === '매출') { rev += amt; vat += tax; }
+            else if(r.type === '비용') { exp += amt; vat -= tax; }
+            else if(r.type === '자산') { ast += amt; }
+        });
+    }
+    document.getElementById("valRev").innerText = rev.toLocaleString();
+    document.getElementById("valExp").innerText = exp.toLocaleString();
+    document.getElementById("valAst").innerText = ast.toLocaleString();
+    document.getElementById("valVat").innerText = vat.toLocaleString();
+    document.getElementById("valCash").innerText = (rev - exp).toLocaleString(); // 추정 잔고
+}
+
+// 3. 계정과목 검색 및 선택
+function openSelModal(){ 
+    document.getElementById("accountSearchInput").value = ""; 
+    filterAccounts(); 
+    selectModal.show();
+}
+function filterAccounts() {
+    const keyword = document.getElementById("accountSearchInput").value.trim();
+    const curType = document.querySelector('input[name="inputType"]:checked').value; 
+    const listEl = document.getElementById("accountSearchResult");
+    listEl.innerHTML = "";
+    
+    const filtered = mData.filter(item => {
+        const matchType = (curType === '자산') ? ['자산','부채','자본'].includes(item.type) : (item.type === curType);
+        const matchKey = item.name.includes(keyword) || (item.category && item.category.includes(keyword));
+        return matchType && matchKey;
+    });
+
+    filtered.forEach(acc => {
+        const div = document.createElement("div");
+        div.className = "list-group-item list-group-item-action search-list-item";
+        div.innerHTML = `<strong>${acc.name}</strong> <small class="text-muted">(${acc.category})</small>`;
+        div.onclick = () => selectAccount(acc);
+        listEl.appendChild(div);
+    });
+}
+function selectAccount(acc) {
+    document.getElementById("displayAccount").value = acc.name;
+    document.getElementById("hiddenItem").value = acc.name;
+    document.getElementById("hiddenStandard").value = acc.category;
+    updateDynamicUI(acc);
+    selectModal.hide();
+}
+
+function updateDynamicUI(acc) {
+    const area = document.getElementById("dynamicArea");
+    const specialInput = document.getElementById("specialMode");
+    const vatCheck = document.getElementById("vatCheck");
+    const cardDiv = document.getElementById("cardOptionDiv");
+    
+    area.innerHTML = ""; specialInput.value = "";
+    
+    if (acc.is_tax_free) { vatCheck.checked = false; vatCheck.disabled = true; } 
+    else { vatCheck.disabled = false; vatCheck.checked = true; }
+    
+    if (acc.special_code === 'salary') {
+        specialInput.value = "salary";
+        area.innerHTML = `<div class="special-box"><small class="text-success fw-bold">ℹ️ 급여/인건비</small><br>카드/부가세 제외 처리</div>`;
+        cardDiv.classList.add('hidden'); vatCheck.checked=false;
+    } else {
+        cardDiv.classList.remove('hidden');
+    }
+}
+
+// 4. 전표 저장
+async function handleFormSubmit(e) {
+    e.preventDefault();
+    if(!document.getElementById("hiddenItem").value) return alert("계정과목을 선택하세요.");
+    
+    const f = document.getElementById("erpForm");
+    const totalAmt = Number(document.getElementById("inputAmount").value);
+    
+    // 부가세 계산
+    let supply = totalAmt;
+    let vat = 0;
+    if(document.getElementById("vatCheck").checked) {
+        supply = Math.round(totalAmt / 1.1);
+        vat = totalAmt - supply;
+    }
+
+    const payload = {
+        date: document.getElementById("dateField").value,
+        type: document.querySelector('input[name="inputType"]:checked').value,
+        account_name: document.getElementById("hiddenItem").value,
+        category: document.getElementById("hiddenStandard").value,
+        description: document.getElementById("inputDesc").value,
+        amount: supply,
+        vat: vat,
+        payer: document.getElementById("payerName").value,
+        method: document.getElementById("payMethod").checked ? document.getElementById("cardSelect").value : "계좌/현금",
+        project: document.getElementById("projectSelect").value
+    };
+
+    const { error } = await _supabase.from('acc_transactions').insert(payload);
+    
+    if(error) alert("저장 실패: " + error.message);
+    else {
+        alert("저장되었습니다.");
+        f.reset();
+        document.getElementById("smNorm").checked = true;
+        refreshDashboard();
+    }
+}
+
+// 5. 최근 전표 불러오기 & 삭제
+async function loadHistory() {
+    const el = document.getElementById("historyList");
+    el.innerHTML = "로딩 중...";
+    
+    const { data } = await _supabase.from('acc_transactions').select('*').order('date', {ascending:false}).order('created_at', {ascending:false}).limit(10);
+    
+    el.innerHTML = "";
+    if(!data || data.length === 0) { el.innerHTML = "<div class='text-center p-3 text-muted'>내역 없음</div>"; return; }
+    
+    data.forEach(item => {
+        const total = Number(item.amount) + Number(item.vat);
+        const div = document.createElement("div");
+        div.className = "list-group-item d-flex justify-content-between align-items-center";
+        div.innerHTML = `
+            <div>
+                <span class="badge bg-secondary me-1">${item.type}</span>
+                <strong>${item.account_name}</strong> <small class="text-muted">(${item.date})</small>
+                <div class="small text-muted">${item.description}</div>
+            </div>
+            <div class="text-end">
+                <div class="fw-bold">${total.toLocaleString()}</div>
+                <button class="btn btn-outline-danger btn-sm p-0 px-2" onclick="deleteTx(${item.id})">삭제</button>
+            </div>
+        `;
+        el.appendChild(div);
+    });
+}
+
+async function deleteTx(id) {
+    if(!confirm("정말 삭제하시겠습니까?")) return;
+    const { error } = await _supabase.from('acc_transactions').delete().eq('id', id);
+    if(error) alert("삭제 실패");
+    else { loadHistory(); refreshDashboard(); }
+}
+
+// 6. 급여 자동 연동 (Salary Sync)
+async function syncSalary() {
+    const ym = document.getElementById("salaryMonth").value;
+    if(!ym) return alert("년-월을 선택하세요.");
+    if(!confirm(ym + "월 급여 내역을 회계전표로 가져오겠습니까?")) return;
+
+    // 1) 해당 월 급여 합계 조회 (hr_salary 테이블)
+    const { data: salaries } = await _supabase.from('hr_salary').select('*').eq('year_month', ym);
+    
+    if(!salaries || salaries.length === 0) return alert("해당 월의 급여 데이터가 없습니다.");
+    
+    let totalPay = 0;
+    salaries.forEach(s => totalPay += Number(s.pay_total)); // 지급총액 합산
+
+    // 2) 전표 생성 (비용 - 급여)
+    const payload = {
+        date: `${ym}-25`, // 25일 지급일 가정
+        type: '비용',
+        account_name: '급여',
+        category: '인건비',
+        description: `${ym}월분 임직원 급여 일괄 등록 (${salaries.length}명)`,
+        amount: totalPay,
+        vat: 0,
+        payer: '회사',
+        method: '계좌이체',
+        project: '본사'
+    };
+
+    const { error } = await _supabase.from('acc_transactions').insert(payload);
+    if(error) alert("연동 실패: " + error.message);
+    else { alert("연동 완료!"); refreshDashboard(); loadHistory(); }
+}
+
+// 7. 결산 보고서 생성 (JS 집계)
+async function printReport() {
+    const { data } = await _supabase.from('acc_transactions').select('*');
+    if(!data) return alert("데이터가 없습니다.");
+
+    let rev={}, exp={}, ast={}, liab={}, eq={}; // 계정과목별 집계용
+    let totalRev=0, totalExp=0;
+
+    data.forEach(r => {
+        const amt = Number(r.amount);
+        if(r.type==='매출') { rev[r.account_name] = (rev[r.account_name]||0)+amt; totalRev+=amt; }
+        else if(r.type==='비용') { exp[r.account_name] = (exp[r.account_name]||0)+amt; totalExp+=amt; }
+        else if(r.type==='자산') ast[r.account_name] = (ast[r.account_name]||0)+amt;
+        // 부채/자본 로직은 약식
+    });
+
+    const netIncome = totalRev - totalExp;
+    const html = `
+        <h2 style="text-align:center;">손익계산서 (약식)</h2>
+        <div style="text-align:right; margin-bottom:10px;">${new Date().toLocaleDateString()} 기준</div>
+        <table class="tbl">
+            <tr><th colspan="2">과목</th><th>금액</th></tr>
+            <tr style="background:#e8f5e9;"><td colspan="2"><b>I. 매 출 액</b></td><td class="amt"><b>${totalRev.toLocaleString()}</b></td></tr>
+            ${Object.keys(rev).map(k=>`<tr><td></td><td>${k}</td><td class="amt">${rev[k].toLocaleString()}</td></tr>`).join('')}
+            
+            <tr style="background:#ffebee;"><td colspan="2"><b>II. 영업비용</b></td><td class="amt"><b>${totalExp.toLocaleString()}</b></td></tr>
+            ${Object.keys(exp).map(k=>`<tr><td></td><td>${k}</td><td class="amt">${exp[k].toLocaleString()}</td></tr>`).join('')}
+            
+            <tr style="background:#fff3cd; border-top:2px solid #333;"><td colspan="2"><b>III. 당기순이익</b></td><td class="amt"><b>${netIncome.toLocaleString()}</b></td></tr>
+        </table>
+    `;
+    
+    document.getElementById("reportContent").innerHTML = html;
+    reportModal.show();
+}
+
+function realPrint() {
+    const content = document.getElementById("reportContent").innerHTML;
+    const win = window.open("", "", "width=900,height=1000");
+    win.document.write(`<html><head><title>결산보고서</title><style>body{font-family:sans-serif;padding:30px;} table{width:100%;border-collapse:collapse;} th,td{border:1px solid #ccc;padding:8px;} th{background:#f8f9fa;} .amt{text-align:right;}</style></head><body>${content}</body></html>`);
+    win.document.close();
+    win.print();
+}
+
+// 기타 UI 헬퍼
+function toggleSettleMode() {
+    const mode = document.querySelector('input[name="settleMode"]:checked').value;
+    const div = document.getElementById("payerInputDiv");
+    if(mode) { div.style.display="block"; document.getElementById("modeBadge").className = "badge bg-primary"; document.getElementById("modeBadge").innerText = "특수"; }
+    else { div.style.display="none"; document.getElementById("modeBadge").className = "badge bg-secondary"; document.getElementById("modeBadge").innerText = "일반"; }
+}
+function toggleCardSelect() {
+    const chk = document.getElementById("payMethod").checked;
+    document.getElementById("cardSelect").classList.toggle("hidden", !chk);
+}
+function handleTypeChange() {
+    document.getElementById("displayAccount").value = "";
+    document.getElementById("hiddenItem").value = "";
+    document.getElementById("dynamicArea").innerHTML = "";
+}
+function openAddModal() { addModal.show(); }
+async function confAdd() {
+    const name = document.getElementById("addName").value;
+    const cat = document.getElementById("addMediumInput").value;
+    if(!name) return alert("이름을 입력하세요");
+    const type = document.querySelector('input[name="inputType"]:checked').value;
+    
+    const { error } = await _supabase.from('acc_accounts').insert({type, category:cat, name});
+    if(error) alert("추가 실패");
+    else { alert("추가됨"); addModal.hide(); loadMasterData(); }
+}
+function openInfoModal() { infoModal.show(); }
+async function saveInfo() { 
+    // 나중에 ref_org_info 테이블 만들어서 저장 구현 
+    alert("설정 저장 기능은 준비중입니다."); infoModal.hide(); 
+}
+</script>
+</body>
+</html>
