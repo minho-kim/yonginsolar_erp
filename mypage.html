@@ -14,11 +14,8 @@
     .hidden { display: none !important; }
     .profile-card { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; align-items: center; }
     .profile-icon { width: 70px; height: 70px; background: #e9ecef; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; margin-right: 20px; }
-    
-    /* [수정] 연차 카드 4칸으로 변경 (당겨쓰기 포함) */
     .leave-card { background: white; border-radius: 12px; padding: 15px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); height: 100%; }
     .leave-num { font-size: 1.4rem; font-weight: bold; color: #0d6efd; }
-    
     .nav-tabs .nav-link { color: #495057; cursor: pointer; }
     .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; }
     .tab-content { background: white; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 10px 10px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
@@ -242,7 +239,6 @@ async function updateInfo() {
 }
 
 async function calculateLeave() {
-    // 1. 발생 연차
     let generatedLeave = 0;
     if (myInfo.hire_date) {
         const join = new Date(myInfo.hire_date);
@@ -256,22 +252,19 @@ async function calculateLeave() {
         }
     }
 
-    // 2. DB에서 사용/당겨쓰기 데이터 가져오기
     let usedLeave = 0;
-    let advanceLeave = 0; // [추가]
+    let advanceLeave = 0; 
     
-    // select used_days, advance_days ...
     const { data } = await _supabase.from('hr_leave').select('used_days, advance_days').eq('emp_id', myInfo.emp_id).single();
     if (data) {
         usedLeave = Number(data.used_days || 0);
-        advanceLeave = Number(data.advance_days || 0); // [추가] 당겨쓴 연차
+        advanceLeave = Number(data.advance_days || 0); 
     }
 
-    // 3. 최종 잔여 연차 계산: (발생 + 당겨쓰기) - 사용
     const remainLeave = (generatedLeave + advanceLeave) - usedLeave;
 
     document.getElementById("lvTotal").innerText = generatedLeave;
-    document.getElementById("lvAdvance").innerText = advanceLeave; // 화면 표시
+    document.getElementById("lvAdvance").innerText = advanceLeave; 
     document.getElementById("lvUsed").innerText = usedLeave;
     document.getElementById("lvRemain").innerText = remainLeave;
 }
@@ -329,6 +322,12 @@ async function runCertIssue() {
     };
     
     printDocument('cert', certData);
+}
+
+// [누락되었던 함수 복구!]
+function printSalaryPopup() {
+    if(!currentSalaryData) return alert("먼저 급여 내역을 조회해주세요.");
+    printDocument('salary', currentSalaryData);
 }
 
 function printDocument(type, data) {
