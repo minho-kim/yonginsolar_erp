@@ -580,15 +580,23 @@ async function loadSalaryData() {
 }
 
 // 급여 저장
+// [긴급 수정] 급여 저장 로직 (삭제 기능 완전 제거 -> 안전한 덮어쓰기 적용)
 async function saveSalary() {
     const month = document.getElementById("salaryMonth").value;
-    const p_basic = Number(document.getElementById("payBasic").value);
-    const p_meal = Number(document.getElementById("payMeal").value);
-    const p_car = Number(document.getElementById("payCar").value);
-    const p_child = Number(document.getElementById("payChild").value);
-    const p_bonus = Number(document.getElementById("payBonus").value);
+    if (!month) return showAlert("귀속월을 선택해주세요.");
+
+    // 입력값 가져오기
+    const p_basic = Number(document.getElementById("payBasic").value) || 0;
+    const p_meal = Number(document.getElementById("payMeal").value) || 0;
+    const p_car = Number(document.getElementById("payCar").value) || 0;
+    const p_child = Number(document.getElementById("payChild").value) || 0;
+    const p_bonus = Number(document.getElementById("payBonus").value) || 0;
+    
+    // 계산 로직
     const p_total = p_basic + p_meal + p_car + p_child + p_bonus;
-    const tax_base = p_total - (p_meal + p_car + p_child); 
+    const tax_base = p_total - (p_meal + p_car + p_child); // 비과세 제외
+    
+    // 세금 계산 (설정값 적용)
     const pen = Math.floor(tax_base * (settings.rate_pension / 100));
     const hlt = Math.floor(tax_base * (settings.rate_health / 100));
     const care = Math.floor(hlt * (settings.rate_care / 100)); 
@@ -597,14 +605,52 @@ async function saveSalary() {
     const loc = Math.floor(inc * 0.1);
     const d_total = pen + hlt + care + emp + inc + loc;
     const net = p_total - d_total;
+
+    // 저장할 데이터 뭉치
     const payload = {
-        emp_id: currentEmpId, emp_name: currentEmpName, year_month: month,
+        emp_id: currentEmpId, 
+        emp_name: currentEmpName, 
+        year_month: month,
         pay_basic: p_basic, pay_meal: p_meal, pay_car: p_car, pay_child: p_child, pay_bonus: p_bonus, pay_total: p_total,
         ded_pension: pen, ded_health: hlt, ded_care: care, ded_employ: emp, ded_income: inc, ded_local: loc, ded_total: d_total, net_pay: net
     };
-    await _supabase.from('hr_salary').delete().eq('emp_id', currentEmpId).eq('year_month', month);
-    await _supabase.from('hr_salary').insert(payload);
-    showAlert("급여가 확정되었습니다."); loadSalaryData();
+
+    showLoading();
+
+    // [안전 로직 1단계] 이미 존재하는 데이터인지 확인
+    const { data: existing } = await _supabase
+        .from('hr_salary')
+        .select('id')
+        .eq('emp_id', currentEmpId)
+        .eq('year_month', month)
+        .single();
+
+    let error;
+
+    if (existing) {
+        // [수정] 데이터가 있으면 -> 그 줄만 '업데이트' (삭제 안 함!)
+        const { error: updateErr } = await _supabase
+            .from('hr_salary')
+            .update(payload)
+            .eq('id', existing.id); // PK로 안전하게 업데이트
+        error = updateErr;
+    } else {
+        // [신규] 데이터가 없으면 -> '추가' (Insert)
+        const { error: insertErr } = await _supabase
+            .from('hr_salary')
+            .insert(payload);
+        error = insertErr;
+    }
+
+    hideLoading();
+
+    if (error) {
+        console.error(error);
+        showAlert("저장 실패: " + error.message);
+    } else {
+        showAlert("급여가 안전하게 저장되었습니다.");
+        loadSalaryData(); // 화면 갱신
+    }
 }
 
 // 근태 로드
