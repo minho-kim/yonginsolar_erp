@@ -471,6 +471,54 @@ async function saveLog() {
     document.getElementById("logReason").value = "";
     loadLeave();
 }
+  // [수정된 파일 업로드 함수]
+async function uploadContract() {
+    const fileInput = document.getElementById("contractFile");
+    if (fileInput.files.length === 0) return showAlert("파일을 선택해주세요.");
+
+    const file = fileInput.files[0];
+    
+    // 파일명 생성: 사번_계약서_타임스탬프 (중복/한글깨짐 방지)
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${currentEmpId}_contract_${Date.now()}.${fileExt}`;
+    
+    // 1. 스토리지(contracts 버킷)에 업로드
+    const { data, error } = await _supabase.storage
+        .from('contracts') // 아까 만든 버킷 이름
+        .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: true // 덮어쓰기 허용
+        });
+
+    if (error) {
+        console.error(error);
+        return showAlert("업로드 실패: " + error.message);
+    }
+
+    // 2. 업로드된 파일의 공개 URL 가져오기
+    const { data: { publicUrl } } = _supabase.storage
+        .from('contracts')
+        .getPublicUrl(fileName);
+
+    // 3. 직원 정보(DB)에 URL 업데이트
+    const { error: dbError } = await _supabase
+        .from('ref_employees')
+        .update({ contract_url: publicUrl })
+        .eq('emp_id', currentEmpId);
+
+    if (dbError) {
+        return showAlert("DB 저장 실패: " + dbError.message);
+    }
+
+    showAlert("계약서가 성공적으로 등록되었습니다.");
+    
+    // 화면 갱신 (링크 표시)
+    document.getElementById("contractView").innerHTML = 
+        `<a href="${publicUrl}" target="_blank" class="btn btn-sm btn-info w-100 text-white">📄 계약서 보기</a>`;
+    document.getElementById("contractUrlInput").value = publicUrl; // URL 입력칸에도 채움
+    
+    loadList(); // 전체 목록 갱신
+}
 </script>
 </body>
 </html>
