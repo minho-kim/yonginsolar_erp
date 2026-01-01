@@ -182,10 +182,10 @@ async function loadCompanyInfo() {
         data.forEach(item => { companyInfo[item.key] = item.value; });
     }
     
-    // [추가 기능] 이사장 이름 자동 조회 (ref_employees 테이블에서 '이사장' 직책 검색)
+    // 이사장 자동 조회
     const { data: boss } = await _supabase.from('ref_employees').select('emp_name').eq('position', '이사장').single();
     if(boss) {
-        companyInfo.chairman_name = boss.emp_name; // DB에 있는 이름으로 덮어쓰기
+        companyInfo.chairman_name = boss.emp_name; 
     }
 }
 
@@ -237,28 +237,18 @@ async function updateInfo() {
     if(error) alert("수정 실패"); else alert("정보가 수정되었습니다.");
 }
 
-// [수정된 연차 계산 로직] 입사일의 '일(Day)'까지 고려
 async function calculateLeave() {
     let generatedLeave = 0;
-    
     if (myInfo.hire_date) {
         const join = new Date(myInfo.hire_date);
         const now = new Date();
-        
-        // 년, 월 차이 계산
         let diffMonths = (now.getFullYear() - join.getFullYear()) * 12 + (now.getMonth() - join.getMonth());
-        
-        // [핵심] 현재 날짜(일)가 입사일의 날짜보다 이전이면 아직 한 달 안 찬 것으로 간주하여 1개월 뺌
-        // 예: 입사 11/20, 오늘 1/19 -> 2개월 차이지만 20일 안 지났으니 1개월로 계산
         if (now.getDate() < join.getDate()) {
             diffMonths--;
         }
-
-        // 1년 미만: 만근 월수만큼 부여
         if (diffMonths < 12) {
-            generatedLeave = Math.max(0, diffMonths); // 음수 방지
+            generatedLeave = Math.max(0, diffMonths); 
         } else {
-            // 1년 이상: 15개 + 근속년수에 따른 가산 (단순화)
             const years = Math.floor(diffMonths / 12);
             generatedLeave = 15 + Math.floor((years - 1) / 2);
         }
@@ -294,8 +284,17 @@ function runCertIssue() {
         birthStr = `${prefix}${y}년 ${m}월 ${d}일`;
     }
 
+    // [핵심] 주소와 회사명 중복 제거 로직
+    // DB 주소에서 회사명을 미리 제거한 깨끗한 주소 만들기
+    let cleanAddr = companyInfo.company_address;
+    if (cleanAddr) {
+        cleanAddr = cleanAddr.replace('용인모두의 햇빛협동조합', '')
+                             .replace('용인모두의햇빛협동조합', '')
+                             .trim();
+    }
+
     const certData = {
-        logo: companyInfo.logo_horizontal_url || "", // [추가] 가로 로고 URL
+        logo: companyInfo.logo_horizontal_url || "", 
         name: myInfo.emp_name,
         birth: birthStr,
         dept: myInfo.department,
@@ -304,9 +303,9 @@ function runCertIssue() {
         tenure: myInfo.tenureStr, 
         purpose: purpose,
         today: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }),
-        chairman: companyInfo.chairman_name || "이사장", // 자동 조회된 이름 사용
+        chairman: companyInfo.chairman_name || "이사장",
         compName: companyInfo.company_name,
-        compAddr: companyInfo.company_address,
+        compAddr: cleanAddr, // 중복 제거된 주소 전달
         contact: companyInfo.company_contact,
         seal: companyInfo.seal_url
     };
@@ -322,22 +321,18 @@ function printDocument(type, data) {
       body{ font-family:"Malgun Gothic", serif; padding: 40px; }
       .cert-container { border: 2px solid #fff; padding: 20px; text-align: center; position: relative; }
       
-      /* [추가] 좌측 상단 로고 스타일 */
-      .top-logo { position: absolute; left: 0; top: 0; height: 40px; } 
+      .top-logo { position: absolute; left: 0; top: 0; height: 50px; } 
 
-      h1 { font-size: 32px; font-weight: bold; margin-bottom: 10px; }
-      h2 { font-size: 28px; text-decoration: underline; margin: 40px 0; font-weight: bold; }
+      h2 { font-size: 32px; text-decoration: underline; margin: 80px 0 40px 0; font-weight: bold; }
       
       .doc-num { text-align: right; font-size: 13px; margin-bottom: 30px; }
       
-      /* [수정] 섹션 제목 위치 조정 */
       .tbl-title { text-align: left; font-weight: bold; font-size: 16px; margin-top: 10px; margin-bottom: 5px; }
       
       table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 15px; }
       th, td { border: 1px solid #000; padding: 12px; }
       th { background: #f9f9f9; width: 110px; text-align: center; }
       
-      /* [수정] 푸터 폰트 작게 */
       .footer { margin-top: 80px; font-size: 12px; line-height: 1.6; color: #555; }
       
       .chairman-sign { font-size: 24px; font-weight: bold; margin-top: 50px; position: relative; display: inline-block; }
@@ -352,8 +347,7 @@ function printDocument(type, data) {
         <div class="cert-container">
             ${data.logo ? `<img src="${data.logo}" class="top-logo">` : ''}
             
-            <div style="font-size:14px; text-align:left; margin-top: 50px; color:#555;">${data.compName}<br>Yongin Solar Power Cooperative</div>
-            <div style="text-align:right; font-size:12px; margin-bottom:5px;">www.yonginsolar.kr</div>
+            <div style="text-align:right; font-size:12px; margin-top:50px; margin-bottom:5px;">www.yonginsolar.kr</div>
             
             <h2>재 직 증 명 서</h2>
             
@@ -400,6 +394,7 @@ function printDocument(type, data) {
         </div>
         `;
     } else if(type === 'salary') {
+        // 급여명세서 (기존 유지)
         html += `
             <h2 style="text-decoration:none; border-bottom:2px solid #333; padding-bottom:10px;">${data.yearMonth} 급여명세서</h2>
             <table style="margin-top:30px;">
