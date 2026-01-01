@@ -24,7 +24,7 @@
     .btn-report { width: 100%; margin-bottom: 20px; font-weight: bold; border-radius: 10px; }
     .readonly-input { background-color: #f8f9fa; cursor: pointer; }
     
-    /* 리포트 스타일 (PDF 참조) */
+    /* 리포트 스타일 */
     #reportContent { font-family: "Malgun Gothic", serif; font-size: 12px; }
     .rpt-title { text-align: center; font-size: 24px; font-weight: bold; margin-bottom: 20px; text-decoration: underline; }
     .rpt-header-tbl { width: 100%; border: 2px solid #000; margin-bottom: 20px; }
@@ -37,7 +37,7 @@
     .rpt-amt { text-align: right; font-family: 'Consolas', monospace; }
     .rpt-indent { padding-left: 20px !important; }
     
-    /* 인쇄 시 페이지 분리 */
+    /* 인쇄 설정 */
     @media print {
         .page-break { page-break-before: always; }
         .no-print { display: none !important; }
@@ -45,11 +45,10 @@
         .main-container { box-shadow: none; border: none; max-width: 100%; padding: 0; }
     }
     
-    /* 검색 리스트 스타일 */
-    .search-list-item { cursor: pointer; transition: background 0.1s; }
-    .search-list-item:hover { background-color: #e9ecef; }
+    .search-list-item:hover { background-color: #e9ecef; cursor: pointer; }
     .acc-item-name { font-size: 1.1rem; font-weight: bold; color: #333; }
     .acc-item-std { font-size: 0.85rem; color: #888; }
+    .category-header { background: #f8f9fa; font-size: 0.85rem; font-weight: bold; color: #666; padding: 5px 10px; }
     
     .hidden { display: none !important; }
     .ime-kr { ime-mode: active; }
@@ -135,12 +134,13 @@
         <div class="mb-3">
           <label class="small text-muted">계정과목</label>
           <div class="input-group">
-            <input type="text" class="form-control readonly-input ime-kr" id="displayAccount" placeholder="선택하세요" readonly onclick="openSelModal()">
+            <input type="text" class="form-control readonly-input ime-kr" id="displayAccount" placeholder="선택하세요 (유형에 맞는 항목만 표시됨)" readonly onclick="openSelModal()">
             <button class="btn btn-secondary" type="button" onclick="openSelModal()">🔍</button>
             <button class="btn btn-outline-secondary" type="button" onclick="openAddModal()">➕</button>
           </div>
           <input type="hidden" id="hiddenItem"><input type="hidden" id="hiddenStandard">
-          <input type="hidden" id="isTaxFree"> </div>
+          <input type="hidden" id="isTaxFree"> 
+        </div>
 
         <div class="mb-3"><label class="small text-muted">적요</label><input type="text" class="form-control ime-kr" id="inputDesc" required></div>
         <div class="mb-2"><label class="small text-muted">금액 (합계)</label><input type="number" class="form-control form-control-lg" id="inputAmount" placeholder="0" required min="0"></div>
@@ -215,8 +215,22 @@
     </div>
     <input type="text" class="form-control mb-3 hidden" id="manualCatInput" placeholder="새 중분류명 입력">
     
+    <label class="small text-muted mb-1">사용처</label>
+    <select class="form-select mb-3" id="addUsageSelect">
+        <option value="전체">전체</option>
+        <option value="본사">본사</option>
+        <option value="1호기">1호기</option>
+        <option value="2호기">2호기</option>
+    </select>
+
     <label class="small text-muted mb-1">새 항목명</label>
-    <input type="text" class="form-control" id="addNewItemName" placeholder="예: 야근식대">
+    <input type="text" class="form-control mb-3" id="addNewItemName" placeholder="예: 야근식대">
+
+    <div class="form-check p-2 border rounded bg-light">
+        <input class="form-check-input ms-0 me-2" type="checkbox" id="addTaxFreeCheck">
+        <label class="form-check-label fw-bold" for="addTaxFreeCheck">면세 항목 (Tax Free)</label>
+        <div class="text-muted small ms-4">체크 시 부가세 계산에서 제외됩니다.</div>
+    </div>
 </div>
 <div class="modal-footer"><button class="btn btn-primary w-100" onclick="confAdd()">추가하기</button></div></div></div></div>
 
@@ -242,8 +256,6 @@ window.onload = async function() {
     const stored = localStorage.getItem('erp_user');
     if(stored) myInfo = JSON.parse(stored);
 
-    // 날짜: 연도 입력 후 자동 월 이동은 type="date" 특성상 브라우저 UI를 따르므로 JS 제어 한계 있음.
-    // 대신 오늘 날짜 기본 세팅
     document.getElementById('dateField').valueAsDate = new Date();
     document.getElementById('salaryMonth').value = new Date().toISOString().slice(0, 7);
 
@@ -307,7 +319,7 @@ async function handleFormSubmit(e) {
     const totalAmt = Number(document.getElementById("inputAmount").value);
     
     const isTaxFreeStr = document.getElementById("isTaxFree").value;
-    const isTaxFree = (isTaxFreeStr === "true"); // boolean 변환
+    const isTaxFree = (isTaxFreeStr === "true"); 
     const useVAT = document.getElementById("vatCheck").checked;
     
     const isCard = (settleMode === "") && document.getElementById("payMethod").checked;
@@ -317,7 +329,6 @@ async function handleFormSubmit(e) {
     let netAmount = totalAmt;
     let vatAmount = 0;
     
-    // [중요] 면세가 아니고, 부가세 사용 체크시에만 10% 분리
     if (useVAT && !isTaxFree && type !== '자산' && settleMode !== 'reimburse') {
         netAmount = Math.round(totalAmt / 1.1);
         vatAmount = totalAmt - netAmount;
@@ -331,7 +342,6 @@ async function handleFormSubmit(e) {
     let entries = [];
     const writer = myInfo ? myInfo.emp_name : "WebUser";
 
-    // 분개 로직
     if (settleMode === 'pre_expense') {
         entries.push({ Date: fDate, Type: type, Account: item, Description: finalDesc, Debit: netAmount, Credit: 0, Project: project, Operator: writer });
         if(vatAmount > 0) entries.push({ Date: fDate, Type: '자산', Account: '부가세대급금', Description: `[${item}] 부가세`, Debit: vatAmount, Credit: 0, Project: project, Operator: writer });
@@ -350,7 +360,7 @@ async function handleFormSubmit(e) {
             entries.push({ Date: fDate, Type: '비용', Account: item, Description: finalDesc, Debit: netAmount, Credit: 0, Project: project, Operator: writer });
             if(vatAmount > 0) entries.push({ Date: fDate, Type: '자산', Account: '부가세대급금', Description: `[${item}] 부가세`, Debit: vatAmount, Credit: 0, Project: project, Operator: writer });
             entries.push({ Date: fDate, Type: creditType, Account: creditAcc, Description: finalDesc, Debit: 0, Credit: totalAmt, Project: project, Operator: writer });
-        } else { // 자산
+        } else { // 자산 등
             entries.push({ Date: fDate, Type: type, Account: item, Description: finalDesc, Debit: totalAmt, Credit: 0, Project: project, Operator: writer });
             entries.push({ Date: fDate, Type: '자산', Account: '보통예금', Description: finalDesc, Debit: 0, Credit: totalAmt, Project: project, Operator: writer });
         }
@@ -367,26 +377,24 @@ async function handleFormSubmit(e) {
     }
 }
 
-// 4. 모달: 계정과목 검색 (검색창 추가, 디자인 개선)
+// 4. 모달: 계정과목 검색
 function resetAccountInput() {
     document.getElementById("displayAccount").value = "";
     document.getElementById("hiddenItem").value = "";
     document.getElementById("isTaxFree").value = "false";
 }
 function openSelModal() {
-    filterAccounts(); // 열 때 현재 탭(라디오버튼) 기준 필터링
+    filterAccounts();
     selectModal.show();
     setTimeout(() => document.getElementById("accountSearchInput").focus(), 300);
 }
 function filterAccounts() {
     const keyword = document.getElementById("accountSearchInput").value.trim();
-    // 현재 선택된 라디오버튼 타입 가져오기 (매출/비용/자산)
     const type = document.querySelector('input[name="inputType"]:checked').value;
     
     const list = document.getElementById("accountList");
     list.innerHTML = "";
     
-    // 타입 일치 & 검색어 포함 필터링
     const filtered = mData.filter(m => {
         return m.Type === type && (m.Item.includes(keyword) || m.Standard.includes(keyword));
     });
@@ -400,7 +408,7 @@ function filterAccounts() {
         const d = document.createElement("div");
         d.className = "list-group-item list-group-item-action p-2 ps-3 border-0 border-bottom search-list-item";
         
-        // [디자인] 항목명(큼) + 중분류(작음/괄호)
+        // [디자인] 항목명 + (중분류) + 면세뱃지
         d.innerHTML = `
             <div class="d-flex justify-content-between align-items-center">
                 <div>
@@ -416,9 +424,8 @@ function filterAccounts() {
             document.getElementById("hiddenItem").value = acc.Item;
             document.getElementById("hiddenStandard").value = acc.Standard;
             
-            // [면세 로직] 면세면 부가세 체크박스 해제 및 비활성화
             const isTaxFree = (acc.Tax_Free == 'TRUE' || acc.Tax_Free === true);
-            document.getElementById("isTaxFree").value = isTaxFree; // 저장용
+            document.getElementById("isTaxFree").value = isTaxFree; 
             
             const vat = document.getElementById("vatCheck");
             if(isTaxFree) { 
@@ -426,19 +433,18 @@ function filterAccounts() {
                 vat.disabled = true; 
             } else { 
                 vat.disabled = false; 
-                vat.checked = true; // 기본적으로 다시 켬
+                vat.checked = true; 
             }
-            
             selectModal.hide();
         };
         list.appendChild(d);
     });
 }
 
-// 5. 모달: 항목 추가 (구분 고정)
+// 5. 모달: 항목 추가 (Usage, Tax_Free 추가)
 function openAddModal() {
     const type = document.querySelector('input[name="inputType"]:checked').value;
-    document.getElementById("addTypeSelect").value = type; // 값 고정
+    document.getElementById("addTypeSelect").value = type;
     updateAddCategorySelect();
     addModal.show();
 }
@@ -446,7 +452,6 @@ function updateAddCategorySelect() {
     const type = document.getElementById("addTypeSelect").value;
     const catSel = document.getElementById("addCategorySelect");
     catSel.innerHTML = "";
-    // 기존 중분류 목록 불러오기
     const cats = [...new Set(mData.filter(m => m.Type === type).map(m => m.Standard))].sort();
     cats.forEach(c => catSel.add(new Option(c, c)));
 }
@@ -460,31 +465,39 @@ async function confAdd() {
     const name = document.getElementById("addNewItemName").value;
     let cat = document.getElementById("addCategorySelect").value;
     if(document.getElementById("chkManualCat").checked) cat = document.getElementById("manualCatInput").value;
+    
+    // [신규] 사용처 및 면세여부
+    const usage = document.getElementById("addUsageSelect").value;
+    const isTaxFree = document.getElementById("addTaxFreeCheck").checked ? "TRUE" : "FALSE";
+
     if(!name || !cat) return alert("내용을 입력하세요");
     
-    await _supabase.from('ac_master').insert({Type:type, Standard:cat, Item:name});
+    // ac_master에 Insert (Type, Standard, Item, Usage, Tax_Free)
+    await _supabase.from('ac_master').insert({
+        Type: type, 
+        Standard: cat, 
+        Item: name, 
+        Usage: usage,
+        Tax_Free: isTaxFree
+    });
     alert("추가되었습니다."); addModal.hide(); loadMasterData();
 }
 
-// 6. 결산 보고서 (대차대조표/손익계산서 분리 및 PDF 스타일)
+// 6. 결산 보고서
 async function printReport() {
     const { data } = await _supabase.from('ac_journal').select('*');
     const { data: infoData } = await _supabase.from('ref_company_info').select('*');
     const info = {}; if(infoData) infoData.forEach(i=>info[i.key]=i.value);
     
-    // [멤버수 조회] ref_members 테이블에서 카운트 (없으면 0)
     const { count } = await _supabase.from('ref_members').select('*', { count: 'exact', head: true });
     const memberCount = count || 0;
 
     let asset={}, liab={}, equity={}, rev={}, exp={};
     let tAsset=0, tLiab=0, tEquity=0, tRev=0, tExp=0;
-
-    // 자본금(출자금) 별도 계산 (전표에 있는 '출자금' 계정의 대변 합계 - 차변 합계)
     let capital = 0;
 
     data.forEach(r => {
         const debit = Number(r.Debit||0), credit = Number(r.Credit||0);
-        // 잔액 방향: 자산/비용(차-대), 부채/자본/수익(대-차)
         const valDr = debit - credit;
         const valCr = credit - debit;
 
@@ -498,26 +511,15 @@ async function printReport() {
     const netIncome = tRev - tExp;
     const totalLiabEquity = tLiab + tEquity + netIncome;
 
-    // --- HTML 생성 ---
     const headerHtml = `
         <div class="rpt-title">재무제표</div>
         <table class="rpt-header-tbl">
-            <tr>
-                <th>회사명</th><td>${info.orgName||''}</td>
-                <th>사업자번호</th><td>${info.bizNum||''}</td>
-            </tr>
-            <tr>
-                <th>회계기간</th><td>${new Date().getFullYear()}.01.01 ~ 12.31</td>
-                <th>대표자</th><td>${info.ceoName||''}</td>
-            </tr>
-            <tr>
-                <th>출자금</th><td>${capital.toLocaleString()}원</td>
-                <th>조합원수</th><td>${memberCount}명</td>
-            </tr>
+            <tr><th>회사명</th><td>${info.orgName||''}</td><th>사업자번호</th><td>${info.bizNum||''}</td></tr>
+            <tr><th>회계기간</th><td>${new Date().getFullYear()}.01.01 ~ 12.31</td><th>대표자</th><td>${info.ceoName||''}</td></tr>
+            <tr><th>출자금</th><td>${capital.toLocaleString()}원</td><th>조합원수</th><td>${memberCount}명</td></tr>
         </table>
     `;
 
-    // 1. 대차대조표 (BS)
     const bsHtml = `
         <div class="rpt-sec">1. 대차대조표 (Balance Sheet)</div>
         <div style="text-align:right; font-size:11px;">(단위: 원)</div>
@@ -534,34 +536,27 @@ async function printReport() {
                     <div style="font-weight:bold; margin-bottom:5px;">[부채]</div>
                     ${Object.keys(liab).map(k=>`<div class="d-flex justify-content-between"><span>${k}</span><span>${liab[k].toLocaleString()}</span></div>`).join('')}
                     <div class="fw-bold mt-3 mb-1 text-end border-top">부채총계: ${tLiab.toLocaleString()}</div>
-                    
                     <div style="font-weight:bold; margin-top:10px; margin-bottom:5px;">[자본]</div>
                     ${Object.keys(equity).map(k=>`<div class="d-flex justify-content-between"><span>${k}</span><span>${equity[k].toLocaleString()}</span></div>`).join('')}
                     <div class="d-flex justify-content-between text-primary"><span>(당기순이익)</span><span>${netIncome.toLocaleString()}</span></div>
-                    <div class="d-flex justify-content-between border-top mt-2 pt-2 fw-bold bg-light"><span>부채와자본총계</span><span>${totalLiabEquity.toLocaleString()}</span></div>
+                    <div class="d-flex justify-content-between border-top mt-2 pt-2 fw-bold bg-light"><span>부채/자본 총계</span><span>${totalLiabEquity.toLocaleString()}</span></div>
                 </td>
             </tr>
         </table>
     `;
 
-    // 2. 손익계산서 (PL) - PDF 스타일 적용 (코드/계정과목/금액)
-    // PDF처럼 '코드' 컬럼을 넣었으나, 현재 DB에 코드가 없으면 공란 표시
     const plHtml = `
-        <div class="page-break"></div> <div class="rpt-sec mt-4">2. 손익계산서 (Income Statement)</div>
+        <div class="page-break"></div>
+        <div class="rpt-sec mt-4">2. 손익계산서 (Income Statement)</div>
         <div style="text-align:right; font-size:11px;">(단위: 원)</div>
         <table class="rpt-tbl">
             <tr><th>계정과목</th><th>코드</th><th>금액</th></tr>
-            
             <tr class="bg-light"><td class="fw-bold">I. 매출액</td><td></td><td class="rpt-amt fw-bold">${tRev.toLocaleString()}</td></tr>
             ${Object.keys(rev).map(k=>`<tr><td class="rpt-indent">${k}</td><td class="text-center text-muted text-small">-</td><td class="rpt-amt">${rev[k].toLocaleString()}</td></tr>`).join('')}
-            
             <tr class="bg-light"><td class="fw-bold">II. 매출총이익</td><td></td><td class="rpt-amt fw-bold">${tRev.toLocaleString()}</td></tr>
-
             <tr class="bg-light"><td class="fw-bold">III. 판매비와관리비</td><td></td><td class="rpt-amt fw-bold">${tExp.toLocaleString()}</td></tr>
             ${Object.keys(exp).map(k=>`<tr><td class="rpt-indent">${k}</td><td class="text-center text-muted text-small">-</td><td class="rpt-amt">${exp[k].toLocaleString()}</td></tr>`).join('')}
-
             <tr class="bg-light" style="border-top:2px solid #000;"><td class="fw-bold">IV. 영업이익(손실)</td><td></td><td class="rpt-amt fw-bold">${netIncome.toLocaleString()}</td></tr>
-            
             <tr style="background:#fff3cd; border-top:2px solid #000;"><td class="fw-bold text-center">V. 당기순이익</td><td></td><td class="rpt-amt fw-bold text-danger" style="font-size:1.2em;">${netIncome.toLocaleString()}</td></tr>
         </table>
     `;
@@ -569,44 +564,14 @@ async function printReport() {
     document.getElementById("reportContent").innerHTML = headerHtml + bsHtml + plHtml;
     reportModal.show();
 }
-
 function realPrint() {
     const w = window.open();
-    w.document.write(`
-        <html>
-        <head>
-            <title>사업결산보고서</title>
-            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-            <style>
-                body { padding: 40px; font-family: 'Malgun Gothic', serif; }
-                .rpt-title { text-align: center; font-size: 28px; font-weight: bold; margin-bottom: 30px; text-decoration: underline; }
-                .rpt-header-tbl { width: 100%; border: 2px solid #000; border-collapse: collapse; margin-bottom: 30px; }
-                .rpt-header-tbl th { background: #eee; padding: 8px; border: 1px solid #000; text-align: center; width: 15%; font-weight: bold; }
-                .rpt-header-tbl td { padding: 8px; border: 1px solid #000; }
-                
-                .rpt-sec { font-size: 18px; font-weight: bold; margin: 20px 0 10px 0; border-bottom: 2px solid #555; padding-bottom: 5px; }
-                .rpt-tbl { width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 2px solid #000; }
-                .rpt-tbl th, .rpt-tbl td { border: 1px solid #000; padding: 8px; font-size: 14px; }
-                .rpt-tbl th { background: #f8f9fa; text-align: center; }
-                .rpt-amt { text-align: right; font-family: 'Consolas', monospace; }
-                .rpt-indent { padding-left: 20px !important; }
-                
-                @media print {
-                    .page-break { page-break-before: always; }
-                    .bg-light { background-color: #f8f9fa !important; -webkit-print-color-adjust: exact; }
-                }
-            </style>
-        </head>
-        <body>
-            ${document.getElementById("reportContent").innerHTML}
-        </body>
-        </html>
-    `);
+    w.document.write(`<html><head><title>결산보고서</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"><style>body{padding:40px; font-family:'Malgun Gothic', serif;} .rpt-title{text-align:center; font-size:28px; font-weight:bold; margin-bottom:30px; text-decoration:underline;} .rpt-header-tbl{width:100%; border:2px solid #000; border-collapse:collapse; margin-bottom:30px;} .rpt-header-tbl th{background:#eee; padding:8px; border:1px solid #000; text-align:center; width:15%; font-weight:bold;} .rpt-header-tbl td{padding:8px; border:1px solid #000;} .rpt-sec{font-size:18px; font-weight:bold; margin:20px 0 10px 0; border-bottom:2px solid #555; padding-bottom:5px;} .rpt-tbl{width:100%; border-collapse:collapse; margin-bottom:20px; border:2px solid #000;} .rpt-tbl th, .rpt-tbl td{border:1px solid #000; padding:8px; font-size:14px;} .rpt-tbl th{background:#f8f9fa; text-align:center;} .rpt-amt{text-align:right; font-family:'Consolas', monospace;} .rpt-indent{padding-left:20px !important;} @media print{ .page-break{page-break-before:always;} .bg-light{background-color:#f8f9fa !important; -webkit-print-color-adjust:exact;} }</style></head><body>${document.getElementById("reportContent").innerHTML}</body></html>`);
     w.document.close();
     setTimeout(() => { w.focus(); w.print(); w.close(); }, 500);
 }
 
-// 기타 기능들 (삭제, 설정, 카드토글 등) - 기존 유지
+// 기타 기능들
 async function loadHistory() {
     const el = document.getElementById("historyList");
     el.innerHTML = "로딩 중...";
