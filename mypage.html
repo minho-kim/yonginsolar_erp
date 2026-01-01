@@ -651,6 +651,43 @@ function printDocument(data) {
     win.document.write(html);
     win.document.close();
 }
+  // [누락분 추가] 공지사항 로딩 함수
+async function loadNotices() {
+    const el = document.getElementById("noticeList");
+    try {
+        // 1. DB 조회 (최신순 5개)
+        const { data, error } = await _supabase
+            .from('ref_notice')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(5);
+
+        if (error) throw error;
+
+        // 2. 데이터가 없을 때 처리
+        if (!data || data.length === 0) {
+            el.innerHTML = '<div class="text-center p-3 text-muted">등록된 공지사항이 없습니다.</div>';
+            return;
+        }
+
+        // 3. 데이터가 있을 때 목록 생성 (날짜 처리 안전장치 추가)
+        el.innerHTML = data.map(n => {
+            // 날짜가 없으면 빈칸, 있으면 앞 10자리(YYYY-MM-DD)만 자르기
+            const dateStr = n.created_at ? n.created_at.slice(0, 10) : "";
+            return `
+                <div class="list-group-item">
+                    <h6 class="fw-bold mb-1">${n.title || "제목 없음"}</h6>
+                    <small class="text-muted">${dateStr}</small>
+                </div>
+            `;
+        }).join("");
+
+    } catch (e) {
+        console.error("공지사항 로딩 실패:", e);
+        // 에러가 나도 '로딩 중...' 글씨는 지우고 에러 메시지 표시
+        el.innerHTML = '<div class="text-center p-3 text-secondary small">공지사항을 불러올 수 없습니다.</div>';
+    }
+}
 </script>
 </body>
 </html>
