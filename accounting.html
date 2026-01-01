@@ -24,7 +24,7 @@
     .btn-report { width: 100%; margin-bottom: 20px; font-weight: bold; border-radius: 10px; }
     .readonly-input { background-color: #f8f9fa; cursor: pointer; }
     
-    /* 리포트 스타일 */
+    /* 리포트 및 테이블 스타일 */
     #reportContent { font-family: "Malgun Gothic", serif; font-size: 13px; }
     .tbl { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
     .tbl th, .tbl td { border: 1px solid #ddd; padding: 6px; }
@@ -34,7 +34,6 @@
     .vat-wrapper { display: flex; align-items: center; justify-content: flex-end; margin-bottom: 5px; }
     .search-list-item:hover { background-color: #e9ecef; cursor: pointer; }
     .special-box { background-color: #f1f3f5; border-radius: 8px; padding: 10px; margin-bottom: 15px; border-left: 4px solid #6c757d; }
-    .asset-box { background-color: #e8f5e9; border-radius: 8px; padding: 10px; margin-bottom: 15px; border-left: 4px solid #28a745; }
     
     .hidden { display: none !important; }
     .ime-kr { ime-mode: active; }
@@ -166,11 +165,8 @@
 </div>
 
 <div class="modal fade" id="selectModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><div class="modal-header p-2"><h6 class="m-0">계정과목 검색</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body p-2"><input type="text" class="form-control mb-2 ime-kr" id="accountSearchInput" placeholder="검색어 입력" onkeyup="filterAccounts()"><div class="list-group" id="accountSearchResult" style="height:300px;overflow-y:auto;"></div></div></div></div></div>
-
 <div class="modal fade" id="addModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">항목 추가</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="text" class="form-control mb-2" id="addMediumInput" placeholder="중분류 (예: 운영비)"><input type="text" class="form-control" id="addName" placeholder="항목명 (예: 회식비)"></div><div class="modal-footer"><button class="btn btn-primary" onclick="confAdd()">추가</button></div></div></div></div>
-
 <div class="modal fade" id="reportModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">📄 보고서 미리보기</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="reportContent"></div><div class="modal-footer"><button class="btn btn-primary" onclick="realPrint()">🖨️ 인쇄</button></div></div></div></div>
-
 <div class="modal fade" id="infoModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">⚙️ 설정</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="infoForm"><div class="mb-2"><label>조합명</label><input type="text" class="form-control" id="orgName"></div><div class="mb-3"><label>설립일</label><input type="date" class="form-control" id="estDate"></div></form></div><div class="modal-footer"><button class="btn btn-primary" onclick="saveInfo()">저장</button></div></div></div></div>
 
 <script>
@@ -191,32 +187,33 @@ window.onload = async function() {
     document.getElementById('dateField').valueAsDate = new Date();
     document.getElementById('salaryMonth').value = new Date().toISOString().slice(0, 7);
 
-    // 기초 데이터 로드
+    // 기초 데이터 로드 (국장님 테이블명 반영)
     await loadMasterData();
     await loadCards();
     await refreshDashboard();
 };
 
-// 1. 기초 데이터 로드 (ac_accounts, ac_cards 사용)
+// 1. 기초 데이터 (ac_master, ref_cards)
 async function loadMasterData() {
-    // [수정] ac_accounts 테이블 사용
-    const { data } = await _supabase.from('ac_accounts').select('*').order('type').order('category').order('name');
+    // [수정] ac_master 사용
+    const { data } = await _supabase.from('ac_master').select('*').order('type').order('category').order('name');
     if(data) mData = data;
 }
 async function loadCards() {
-    // [수정] ac_cards 테이블 사용
-    const { data } = await _supabase.from('ac_cards').select('*');
+    // [수정] ref_cards 사용
+    const { data } = await _supabase.from('ref_cards').select('*');
     if(data) {
         cardData = data;
         const sel = document.getElementById("cardSelect");
         sel.innerHTML = "<option value=''>선택</option>";
-        cardData.forEach(c => sel.add(new Option(c.card_name, c.card_name))); // 필드명 확인 필요 (card_name)
+        cardData.forEach(c => sel.add(new Option(c.card_name, c.card_name))); 
     }
 }
 
-// 2. 대시보드 (ac_transactions 사용)
+// 2. 대시보드 (ac_journal)
 async function refreshDashboard() {
-    const { data } = await _supabase.from('ac_transactions').select('*');
+    // [수정] ac_journal 사용
+    const { data } = await _supabase.from('ac_journal').select('*');
     let rev=0, exp=0, ast=0, vat=0;
     
     if(data) {
@@ -235,7 +232,7 @@ async function refreshDashboard() {
     document.getElementById("valCash").innerText = (rev - exp).toLocaleString();
 }
 
-// 3. 전표 저장 (ac_transactions)
+// 3. 전표 저장 (ac_journal)
 async function handleFormSubmit(e) {
     e.preventDefault();
     if(!document.getElementById("hiddenItem").value) return alert("계정과목을 선택하세요.");
@@ -261,7 +258,8 @@ async function handleFormSubmit(e) {
         project: document.getElementById("projectSelect").value
     };
 
-    const { error } = await _supabase.from('ac_transactions').insert(payload);
+    // [수정] ac_journal 사용
+    const { error } = await _supabase.from('ac_journal').insert(payload);
     if(error) alert("저장 실패: " + error.message);
     else {
         alert("저장되었습니다.");
@@ -271,11 +269,11 @@ async function handleFormSubmit(e) {
     }
 }
 
-// 4. 최근 전표
+// 4. 최근 전표 (ac_journal)
 async function loadHistory() {
     const el = document.getElementById("historyList");
     el.innerHTML = "로딩 중...";
-    const { data } = await _supabase.from('ac_transactions').select('*').order('date', {ascending:false}).limit(10);
+    const { data } = await _supabase.from('ac_journal').select('*').order('date', {ascending:false}).limit(10);
     
     el.innerHTML = "";
     if(!data || data.length === 0) { el.innerHTML = "<div class='text-center p-3 text-muted'>내역 없음</div>"; return; }
@@ -295,12 +293,12 @@ async function loadHistory() {
 }
 async function deleteTx(id) {
     if(confirm("삭제하시겠습니까?")) {
-        await _supabase.from('ac_transactions').delete().eq('id', id);
+        await _supabase.from('ac_journal').delete().eq('id', id);
         loadHistory(); refreshDashboard();
     }
 }
 
-// 5. [신규] 급여 & 전자결재 연동
+// 5. 연동 기능
 async function syncSalary() {
     const ym = document.getElementById("salaryMonth").value;
     if(!ym) return alert("년-월을 선택하세요.");
@@ -312,7 +310,8 @@ async function syncSalary() {
     let total = 0;
     salaries.forEach(s => total += Number(s.pay_total));
 
-    await _supabase.from('ac_transactions').insert({
+    // [수정] ac_journal 사용
+    await _supabase.from('ac_journal').insert({
         date: `${ym}-25`, type: '비용', account_name: '급여', category: '인건비',
         description: `${ym}월 급여 (${salaries.length}명)`, amount: total, vat: 0,
         payer: '회사', method: '이체', project: '본사'
@@ -321,45 +320,40 @@ async function syncSalary() {
 }
 
 async function syncApprovals() {
-    // 1) ac_approval에서 완료된 '지출결의서' 조회
+    // 1) ac_approval에서 완료된 지출결의서 조회
     const { data: approvals } = await _supabase.from('ac_approval')
         .select('*')
-        .eq('status', '완료') // 또는 '승인'
-        .like('doc_type', '%지출%'); // 지출결의서 포함
+        .eq('status', '완료') 
+        .like('doc_type', '%지출%');
 
     if(!approvals || approvals.length === 0) return alert("연동할 승인 건이 없습니다.");
-
     if(!confirm(`총 ${approvals.length}건의 승인된 지출을 불러오시겠습니까?`)) return;
 
     let count = 0;
     for (const doc of approvals) {
-        // 이미 등록된 건인지 중복 체크 (선택사항, description 등으로 구분)
-        // 여기서는 단순 추가 로직
-        const { error } = await _supabase.from('ac_transactions').insert({
-            date: new Date().toISOString().slice(0,10), // 오늘 날짜 or 기안일
+        const { error } = await _supabase.from('ac_journal').insert({
+            date: new Date().toISOString().slice(0,10),
             type: '비용',
-            account_name: '미분류비용', // 일단 미분류로 넣고 수정 유도
+            account_name: '미분류비용', // 기본값
             category: '운영비',
             description: `[전자결재] ${doc.title}`,
             amount: doc.amount,
-            vat: 0, // 결재에 부가세 필드가 있다면 연동
-            payer: doc.drafter_name, // 기안자
+            vat: 0,
+            payer: doc.drafter_name,
             method: '미지정',
             project: '본사'
         });
         if(!error) count++;
     }
     alert(`${count}건 연동 완료`);
-    refreshDashboard();
-    loadHistory();
+    refreshDashboard(); loadHistory();
 }
 
-// 6. 설정 (ref_company_info)
+// 6. 설정
 async function openInfoModal() {
     const { data } = await _supabase.from('ref_company_info').select('*');
     const map = {};
     if(data) data.forEach(i => map[i.key] = i.value);
-    
     document.getElementById("orgName").value = map['orgName'] || "";
     document.getElementById("estDate").value = map['estDate'] || "";
     infoModal.show();
@@ -373,11 +367,10 @@ async function saveInfo() {
     alert("저장됨"); infoModal.hide();
 }
 
-// 7. 결산 보고서
+// 7. 리포트
 async function printReport() {
-    const { data } = await _supabase.from('ac_transactions').select('*');
+    const { data } = await _supabase.from('ac_journal').select('*'); // ac_journal 사용
     let rev={}, exp={}, totalRev=0, totalExp=0;
-    
     data.forEach(r => {
         const amt = Number(r.amount);
         if(r.type==='매출') { rev[r.account_name] = (rev[r.account_name]||0)+amt; totalRev+=amt; }
@@ -464,7 +457,8 @@ async function confAdd() {
     const cat = document.getElementById("addMediumInput").value;
     const type = document.querySelector('input[name="inputType"]:checked').value;
     if(!name) return alert("입력하세요");
-    await _supabase.from('ac_accounts').insert({type, category:cat, name});
+    // [수정] ac_master 사용
+    await _supabase.from('ac_master').insert({type, category:cat, name});
     alert("추가됨"); addModal.hide(); loadMasterData();
 }
 </script>
