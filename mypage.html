@@ -182,7 +182,6 @@ async function loadCompanyInfo() {
         data.forEach(item => { companyInfo[item.key] = item.value; });
     }
     
-    // 이사장 자동 조회
     const { data: boss } = await _supabase.from('ref_employees').select('emp_name').eq('position', '이사장').single();
     if(boss) {
         companyInfo.chairman_name = boss.emp_name; 
@@ -275,7 +274,7 @@ async function runCertIssue() {
     if(!purpose) return alert("용도를 입력해주세요.");
     purposeModal.hide();
     
-    // [추가된 기능] 발급 대장(log_cert)에 기록
+    // [로그 기록]
     const { error } = await _supabase.from('log_cert').insert({
         emp_id: myInfo.emp_id,
         emp_name: myInfo.emp_name,
@@ -283,8 +282,10 @@ async function runCertIssue() {
         purpose: purpose
     });
 
-    // 에러가 나도 인쇄는 진행 (사용자 불편 최소화), 콘솔에만 표시
-    if(error) console.error("발급 기록 실패:", error);
+    if(error) {
+        alert("시스템 기록 중 오류가 발생했습니다: " + error.message);
+        // 기록 실패 시 인쇄를 막고 싶으면 return; 하지만 보통은 진행시킵니다.
+    }
 
     let birthStr = "-";
     if (myInfo.rrn) {
@@ -327,27 +328,51 @@ function printDocument(type, data) {
     let html = `
     <html><head><title>인쇄</title>
     <style>
-      body{ font-family:"Malgun Gothic", serif; padding: 40px; }
-      .cert-container { border: 2px solid #fff; padding: 20px; text-align: center; position: relative; }
+      /* [핵심 1] A4 사이즈 강제 지정 및 여백 초기화 */
+      @page { size: A4; margin: 0; }
+      @media print { 
+        body { 
+          -webkit-print-color-adjust: exact; 
+          print-color-adjust: exact; 
+        } 
+      }
       
-      .top-logo { position: absolute; left: 0; top: 0; height: 50px; } 
+      body { 
+        font-family: "Malgun Gothic", serif; 
+        padding: 20mm; /* 인쇄 시 실제 여백 */
+        margin: 0; 
+        box-sizing: border-box;
+      }
 
-      h2 { font-size: 32px; text-decoration: underline; margin: 80px 0 40px 0; font-weight: bold; }
+      /* 컨테이너 여백 다이어트 */
+      .cert-container { 
+        border: 2px solid #fff; 
+        text-align: center; 
+        position: relative; 
+        width: 100%;
+        height: 100%;
+      }
       
-      .doc-num { text-align: right; font-size: 13px; margin-bottom: 30px; }
+      .top-logo { position: absolute; left: 0; top: 0; height: 50px; z-index: 10; } 
+
+      /* 제목 여백 축소 */
+      h2 { font-size: 32px; text-decoration: underline; margin: 40px 0 30px 0; font-weight: bold; }
+      
+      .doc-num { text-align: right; font-size: 13px; margin-bottom: 20px; }
       
       .tbl-title { text-align: left; font-weight: bold; font-size: 16px; margin-top: 10px; margin-bottom: 5px; }
       
-      table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 15px; }
-      th, td { border: 1px solid #000; padding: 12px; }
-      th { background: #f9f9f9; width: 110px; text-align: center; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 15px; }
+      th, td { border: 1px solid #000; padding: 10px; }
+      th { background: #f9f9f9 !important; width: 110px; text-align: center; }
       
-      .footer { margin-top: 80px; font-size: 12px; line-height: 1.6; color: #555; }
+      /* 푸터 여백 조정 */
+      .footer { margin-top: 60px; font-size: 12px; line-height: 1.6; color: #555; }
       
-      .chairman-sign { font-size: 24px; font-weight: bold; margin-top: 50px; position: relative; display: inline-block; }
-      .seal-img { position: absolute; right: -50px; top: -20px; width: 80px; opacity: 0.8; }
+      .chairman-sign { font-size: 24px; font-weight: bold; margin-top: 40px; position: relative; display: inline-block; }
       
-      @media print { .no-print { display: none; } }
+      /* 도장 이미지 */
+      .seal-img { position: absolute; right: -50px; top: -20px; width: 80px; opacity: 0.8; z-index: 10; }
     </style>
     </head><body>`;
     
@@ -387,9 +412,9 @@ function printDocument(type, data) {
                 </tr>
             </table>
 
-            <div style="margin-top: 60px; font-size: 18px;">위와 같이 재직하고 있음을 증명합니다.</div>
+            <div style="margin-top: 50px; font-size: 18px;">위와 같이 재직하고 있음을 증명합니다.</div>
             
-            <div style="margin-top: 40px; font-size: 18px;">${data.today}</div>
+            <div style="margin-top: 30px; font-size: 18px;">${data.today}</div>
             
             <div class="chairman-sign">
                 ${data.compName} 이사장 ${data.chairman}
