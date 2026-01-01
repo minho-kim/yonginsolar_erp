@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>임직원 관리</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script> <style>
+    body { background-color: #f0f2f5; font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; padding: 20px; }
+    .main-card { max-width: 900px; margin: 0 auto; background: white; border-radius: 20px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+    .btn-rounded { border-radius: 50px; }
+    .table-hover tbody tr { cursor: pointer; transition: background 0.2s; }
+    .table-hover tbody tr:hover { background-color: #f8f9fa; transform: scale(1.002); }
+    .status-badge { font-size: 0.75rem; padding: 5px 10px; border-radius: 12px; }
+    
+    .tab-content { padding: 20px; background: #fff; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 10px 10px; }
+    .nav-tabs .nav-link { color: #666; cursor: pointer; }
+    .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; }
+    
+    .modal-content { border-radius: 15px; border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+    .form-control, .form-select { border-radius: 8px; }
+    .d-none { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div class="main-card">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h4 class="fw-bold m-0">👥 임직원 관리</h4>
+      <small class="text-muted">직원 정보 및 급여/근태 통합 관리</small>
+    </div>
+    <div>
+      <button class="btn btn-light btn-sm btn-rounded me-1" onclick="location.href='index.html'">🏠 홈으로</button>
+      <button class="btn btn-outline-secondary btn-sm btn-rounded me-1" onclick="openSettings()">⚙️ 요율 설정</button>
+      <button class="btn btn-primary btn-sm btn-rounded shadow-sm" onclick="openInviteModal()">✨ 신규 등록</button>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle" style="font-size: 0.95rem;">
+      <thead class="table-light text-secondary small">
+        <tr>
+          <th>사번</th><th>이름 / 부서</th><th>직급</th><th>상태</th><th>시스템 권한</th>
+        </tr>
+      </thead>
+      <tbody id="empListBody">
+        <tr><td colspan="5" class="text-center p-4 text-muted">로딩 중... ⏳</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal fade" id="settingsModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title fw-bold">⚙️ 4대보험 및 비과세 설정</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <p class="small text-muted alert alert-light">요율은 <strong>퍼센트(%)</strong> 단위로 입력하세요.</p>
+        <h6 class="fw-bold text-primary small border-bottom pb-1">📊 요율 설정 (Rates)</h6>
+        <div class="row g-2 mb-3">
+          <div class="col-6"><label class="small text-muted">국민연금</label><div class="input-group input-group-sm"><input type="number" id="set_pension" class="form-control" step="0.01"><span class="input-group-text">%</span></div></div>
+          <div class="col-6"><label class="small text-muted">건강보험</label><div class="input-group input-group-sm"><input type="number" id="set_health" class="form-control" step="0.01"><span class="input-group-text">%</span></div></div>
+          <div class="col-6"><label class="small text-muted">장기요양(건보의%)</label><div class="input-group input-group-sm"><input type="number" id="set_care" class="form-control" step="0.01"><span class="input-group-text">%</span></div></div>
+          <div class="col-6"><label class="small text-muted">고용보험</label><div class="input-group input-group-sm"><input type="number" id="set_employ" class="form-control" step="0.01"><span class="input-group-text">%</span></div></div>
+          <div class="col-6"><label class="small text-muted">소득세(간이)</label><div class="input-group input-group-sm"><input type="number" id="set_income" class="form-control" step="0.01"><span class="input-group-text">%</span></div></div>
+          <div class="col-6"><label class="small text-muted">지방소득세(소득세%)</label><div class="input-group input-group-sm"><input type="number" id="set_local" class="form-control" step="0.01"><span class="input-group-text">%</span></div></div>
+        </div>
+        <h6 class="fw-bold text-success small border-bottom pb-1">💰 비과세 한도 (월)</h6>
+        <div class="row g-2">
+          <div class="col-4"><label class="small text-muted">식대</label><input type="number" id="set_meal" class="form-control form-control-sm" step="10000"></div>
+          <div class="col-4"><label class="small text-muted">차량유지</label><input type="number" id="set_car" class="form-control form-control-sm" step="10000"></div>
+          <div class="col-4"><label class="small text-muted">육아수당</label><input type="number" id="set_child" class="form-control form-control-sm" step="10000"></div>
+        </div>
+      </div>
+      <div class="modal-footer p-2"><button class="btn btn-primary w-100 btn-rounded" onclick="saveSettings()">설정 저장</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="inviteModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title fw-bold">✨ 직원 신규 등록</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="alert alert-light border text-center small mb-3">🆔 사원번호는 자동 생성됩니다.</div>
+        <label class="small text-muted ms-1">이름</label><input type="text" id="newName" class="form-control mb-2" placeholder="홍길동">
+        <label class="small text-muted ms-1">이메일</label><input type="email" id="newEmail" class="form-control mb-2" placeholder="user@gmail.com">
+        <div class="row g-2 mb-2">
+          <div class="col"><label class="small text-muted ms-1">직급</label><select id="newRank" class="form-select"><option>사원</option><option>대리</option><option>과장</option><option>차장</option><option>부장</option><option>이사</option><option>국장</option><option>이사장</option></select></div>
+          <div class="col"><label class="small text-muted ms-1">권한</label><select id="newRole" class="form-select"><option value="staff">일반 (Staff)</option><option value="admin">관리자 (Admin)</option></select></div>
+        </div>
+        <div class="mb-3"><label class="small text-muted ms-1">부서</label><input type="text" id="newDept" class="form-control" placeholder="기획팀"></div>
+        <button class="btn btn-primary w-100 btn-rounded py-2" onclick="runInvite()">등록하기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-white">
+        <div><h5 class="modal-title fw-bold" id="detailName"></h5><span class="text-muted small" id="detailId"></span></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0"> 
+        <div class="px-3 pt-3">
+          <ul class="nav nav-tabs" id="empTab" role="tablist">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabInfo">📝 정보 & 계약</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabSalary">💰 급여 관리</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabLog">📅 근태/포상</a></li>
+          </ul>
+        </div>
+        <div class="tab-content">
+          <div class="tab-pane fade show active" id="tabInfo">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">기본 연봉 설정</label>
+                <div class="card p-3 bg-light border-0">
+                  <div class="mb-2"><label class="small text-secondary">연봉 금액 (원)</label><input type="number" id="editSalary" class="form-control" placeholder="숫자만 입력"></div>
+                  <div class="mb-2"><label class="small text-secondary">적용 시작일</label><input type="date" id="salaryApplyDate" class="form-control"></div>
+                  <button class="btn btn-primary btn-sm w-100 mt-2" id="btnSaveInfo" onclick="saveBasicInfo()">연봉 저장</button>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">근로계약서</label>
+                <div id="contractView" class="mb-2"></div>
+                <div class="input-group"><input type="text" id="contractUrlInput" class="form-control form-control-sm" placeholder="계약서 PDF 링크(URL)"><button class="btn btn-outline-secondary btn-sm" onclick="saveContractUrl()">저장</button></div>
+                <div class="form-text x-small">* 구글 드라이브 공유 링크 등을 입력하세요.</div>
+              </div>
+              
+              <div class="col-12 mt-4 pt-3 border-top d-flex justify-content-end gap-2" id="btnResignArea">
+                </div>
+            </div>
+          </div>
+
+          <div class="tab-pane fade" id="tabSalary">
+            <div class="alert alert-info d-flex justify-content-between align-items-center py-2 mb-3">
+              <span class="small">📢 <strong>세전 연봉</strong> 기준으로 자동 계산됩니다.</span>
+              <span class="badge bg-secondary" id="salaryStatusBadge">조회 중...</span>
+            </div>
+            <div class="d-flex align-items-center mb-3">
+              <label class="me-2 fw-bold small">귀속월</label>
+              <input type="month" id="salaryMonth" class="form-control form-control-sm w-auto" onchange="loadSalaryData()">
+            </div>
+            <div class="row g-2">
+              <div class="col-6"><label class="small text-muted">기본급</label><input type="number" id="payBasic" class="form-control fw-bold text-primary"></div>
+              <div class="col-6"><label class="small text-muted">식대</label><input type="number" id="payMeal" class="form-control" value="0"></div>
+              <div class="col-6"><label class="small text-muted">차량유지비</label><input type="number" id="payCar" class="form-control" value="0"></div>
+              <div class="col-6"><label class="small text-muted">육아수당</label><input type="number" id="payChild" class="form-control" value="0"></div>
+              <div class="col-12"><label class="small text-muted">상여/성과급</label><input type="number" id="payBonus" class="form-control" value="0"></div>
+            </div>
+            <button id="btnSaveSalary" class="btn btn-success w-100 mt-3 btn-rounded" onclick="saveSalary()">💾 급여 확정 및 저장</button>
+          </div>
+
+          <div class="tab-pane fade" id="tabLog">
+            <div class="card bg-light border-0 p-3 mb-3 text-center"><small class="text-muted">현재 잔여 연차</small><h3 class="fw-bold text-primary m-0" id="displayLeaveRemain">0일</h3></div>
+            <div class="mb-2"><label class="small text-muted">구분</label><select id="logType" class="form-select"><option value="지급">🎁 지급 (포상 등)</option><option value="차감">⚠️ 차감 (징계 등)</option></select></div>
+            <div class="mb-2"><label class="small text-muted">일수</label><input type="number" id="logValue" class="form-control" placeholder="예: 1"></div>
+            <div class="mb-3"><label class="small text-muted">사유</label><input type="text" id="logReason" class="form-control" placeholder="사유를 입력하세요"></div>
+            <button class="btn btn-primary w-100 btn-rounded" onclick="saveLog()">✅ 반영하기</button>
+          </div>
+        </div> 
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="alertModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content"><div class="modal-body text-center py-4"><p class="mb-0 fw-bold" id="alertBody"></p></div><div class="modal-footer justify-content-center p-1 border-0"><button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">확인</button></div></div></div></div>
+<div class="modal fade" id="confirmModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content"><div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold">확인</h6></div><div class="modal-body text-center py-3" id="confirmBody"></div><div class="modal-footer justify-content-center border-0 pt-0"><button type="button" class="btn btn-secondary btn-sm me-2" data-bs-dismiss="modal">취소</button><button type="button" class="btn btn-danger btn-sm" id="btnConfirmYes">확인</button></div></div></div></div>
+
+<script>
+// Supabase 설정
+const SUPABASE_URL = 'https://ifdqlwxgqgsvnawmhlfc.supabase.co'; 
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmZHFsd3hncWdzdm5hd21obGZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxODQ3NDIsImV4cCI6MjA4Mjc2MDc0Mn0.UKUvMOl58KuDH24seC3oSgla7mK5lr-vXjqtpalnl6k';
+const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let settings = {};
+let currentEmpId = null, currentEmpName = null;
+let confirmCallback = null;
+let alertModal, confirmModal, settingsModal, inviteModal, detailModal;
+
+window.onload = async function() {
+    alertModal = new bootstrap.Modal(document.getElementById('alertModal'));
+    confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    settingsModal = new bootstrap.Modal(document.getElementById('settingsModal'));
+    inviteModal = new bootstrap.Modal(document.getElementById('inviteModal'));
+    detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
+
+    document.getElementById("btnConfirmYes").onclick = function() { if(confirmCallback) confirmCallback(); confirmModal.hide(); };
+    document.getElementById("salaryMonth").value = new Date().toISOString().slice(0, 7);
+
+    await loadList();
+    await loadSettings();
+};
+
+function showAlert(msg) { document.getElementById("alertBody").innerText = msg; alertModal.show(); }
+function showConfirm(msg, cb) { document.getElementById("confirmBody").innerHTML = msg; confirmCallback = cb; confirmModal.show(); }
+
+// 1. 직원 목록 불러오기
+async function loadList() {
+    const tbody = document.getElementById("empListBody");
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4">로딩 중...</td></tr>';
+    
+    const { data: list, error } = await _supabase.from('ref_employees').select('*').order('emp_id');
+    
+    if(error || !list) { tbody.innerHTML = '<tr><td colspan="5" class="text-center">데이터 없음</td></tr>'; return; }
+    
+    tbody.innerHTML = "";
+    list.forEach(u => {
+        let statusBadge = u.resign_date ? `<span class="badge bg-secondary">퇴사</span>` : `<span class="badge bg-success">재직</span>`;
+        let roleBadge = u.role === 'admin' ? '<span class="badge bg-danger">관리자</span>' : '<span class="badge bg-light text-dark">일반</span>';
+        
+        const tr = document.createElement("tr");
+        if(u.resign_date) tr.style.opacity = "0.6";
+        tr.onclick = () => openDetail(u);
+        tr.innerHTML = `
+            <td class="fw-bold text-secondary">${u.emp_id}</td>
+            <td><div class="fw-bold">${u.emp_name}</div><div class="small text-muted">${u.department || '-'}</div></td>
+            <td>${u.position}</td>
+            <td>${statusBadge}</td>
+            <td>${roleBadge}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// 2. 설정 (요율)
+async function loadSettings() {
+    const { data } = await _supabase.from('sys_tax_settings').select('*').eq('id', 1).single();
+    if(data) settings = data;
+}
+function openSettings() {
+    if(!settings.rate_pension) loadSettings();
+    document.getElementById("set_pension").value = settings.rate_pension || 4.5;
+    document.getElementById("set_health").value = settings.rate_health || 3.545;
+    document.getElementById("set_care").value = settings.rate_care || 12.95;
+    document.getElementById("set_employ").value = settings.rate_employ || 0.9;
+    document.getElementById("set_income").value = settings.rate_income || 3.0;
+    document.getElementById("set_local").value = settings.rate_local || 10.0;
+    document.getElementById("set_meal").value = settings.limit_meal || 200000;
+    document.getElementById("set_car").value = settings.limit_car || 200000;
+    document.getElementById("set_child").value = settings.limit_child || 200000;
+    settingsModal.show();
+}
+async function saveSettings() {
+    const updates = {
+        rate_pension: Number(document.getElementById("set_pension").value),
+        rate_health: Number(document.getElementById("set_health").value),
+        rate_care: Number(document.getElementById("set_care").value),
+        rate_employ: Number(document.getElementById("set_employ").value),
+        rate_income: Number(document.getElementById("set_income").value),
+        rate_local: Number(document.getElementById("set_local").value),
+        limit_meal: Number(document.getElementById("set_meal").value),
+        limit_car: Number(document.getElementById("set_car").value),
+        limit_child: Number(document.getElementById("set_child").value)
+    };
+    await _supabase.from('sys_tax_settings').upsert({id: 1, ...updates});
+    showAlert("설정이 저장되었습니다."); settingsModal.hide(); loadSettings();
+}
+
+// 3. 직원 등록
+function openInviteModal() { inviteModal.show(); }
+async function runInvite() {
+    const name = document.getElementById("newName").value;
+    const email = document.getElementById("newEmail").value;
+    if(!name || !email) return showAlert("이름과 이메일을 입력하세요.");
+    
+    // 사번 생성 (연도 + 3자리 순번)
+    const year = new Date().getFullYear();
+    const { count } = await _supabase.from('ref_employees').select('*', { count: 'exact', head: true }).like('emp_id', `${year}%`);
+    const seq = (count || 0) + 1;
+    const empId = `${year}${String(seq).padStart(3, '0')}`;
+
+    const { error } = await _supabase.from('ref_employees').insert({
+        emp_id: empId,
+        emp_name: name,
+        email: email,
+        position: document.getElementById("newRank").value,
+        role: document.getElementById("newRole").value,
+        department: document.getElementById("newDept").value,
+        hire_date: new Date().toISOString().slice(0, 10)
+    });
+
+    if(error) showAlert("오류: " + error.message);
+    else { showAlert(`등록되었습니다.\n사번: ${empId}`); inviteModal.hide(); loadList(); }
+}
+
+// 4. 직원 상세
+function openDetail(u) {
+    currentEmpId = u.emp_id; currentEmpName = u.emp_name;
+    document.getElementById("detailName").innerText = u.emp_name;
+    document.getElementById("detailId").innerText = u.emp_id;
+    
+    document.getElementById("editSalary").value = u.base_salary || 0;
+    document.getElementById("salaryApplyDate").valueAsDate = new Date(); // 오늘
+    document.getElementById("contractUrlInput").value = u.contract_url || "";
+    
+    const viewDiv = document.getElementById("contractView");
+    if(u.contract_url) viewDiv.innerHTML = `<a href="${u.contract_url}" target="_blank" class="btn btn-sm btn-info w-100 text-white">📄 계약서 보기</a>`;
+    else viewDiv.innerHTML = `<span class="text-muted small">미등록</span>`;
+
+    // 퇴사자 처리
+    const area = document.getElementById("btnResignArea");
+    if(u.resign_date) {
+        document.getElementById("editSalary").disabled = true;
+        document.getElementById("salaryApplyDate").disabled = true;
+        document.getElementById("btnSaveInfo").classList.add("d-none");
+        area.innerHTML = `<button class="btn btn-sm btn-warning" onclick="cancelResign()">↩️ 퇴사 취소</button>`;
+    } else {
+        document.getElementById("editSalary").disabled = false;
+        document.getElementById("salaryApplyDate").disabled = false;
+        document.getElementById("btnSaveInfo").classList.remove("d-none");
+        area.innerHTML = `<button class="btn btn-sm btn-outline-danger" onclick="doResign()">⛔ 퇴사 처리</button>`;
+        loadSalaryData(); // 급여 탭 로드
+        loadLeave(); // 근태 탭 로드
+    }
+    
+    detailModal.show();
+}
+
+// 정보 저장
+async function saveBasicInfo() {
+    const sal = Number(document.getElementById("editSalary").value);
+    const date = document.getElementById("salaryApplyDate").value;
+    // 1. 정보 수정
+    await _supabase.from('ref_employees').update({ base_salary: sal }).eq('emp_id', currentEmpId);
+    // 2. 이력 저장
+    await _supabase.from('hr_salary_contracts').insert({ emp_id: currentEmpId, amount: sal, apply_date: date });
+    showAlert("저장되었습니다."); loadList();
+}
+async function saveContractUrl() {
+    const url = document.getElementById("contractUrlInput").value;
+    await _supabase.from('ref_employees').update({ contract_url: url }).eq('emp_id', currentEmpId);
+    showAlert("계약서 링크가 저장되었습니다.");
+}
+
+// 퇴사 관리
+async function doResign() {
+    showConfirm(`${currentEmpName}님을 퇴사 처리하시겠습니까?`, async () => {
+        const today = new Date().toISOString().slice(0, 10);
+        await _supabase.from('ref_employees').update({ resign_date: today }).eq('emp_id', currentEmpId);
+        detailModal.hide(); loadList();
+    });
+}
+async function cancelResign() {
+    showConfirm(`퇴사 처리를 취소하시겠습니까?`, async () => {
+        await _supabase.from('ref_employees').update({ resign_date: null }).eq('emp_id', currentEmpId);
+        detailModal.hide(); loadList();
+    });
+}
+
+// 5. 급여 관리 (자동계산)
+async function loadSalaryData() {
+    const month = document.getElementById("salaryMonth").value;
+    const badge = document.getElementById("salaryStatusBadge");
+    badge.innerText = "조회 중...";
+    
+    // 1) 기존 저장된 급여 있는지 확인
+    const { data: saved } = await _supabase.from('hr_salary').select('*').eq('emp_id', currentEmpId).eq('year_month', month).single();
+    
+    if(saved) {
+        document.getElementById("payBasic").value = saved.pay_basic;
+        document.getElementById("payMeal").value = saved.pay_meal;
+        document.getElementById("payCar").value = saved.pay_car;
+        document.getElementById("payChild").value = saved.pay_child;
+        document.getElementById("payBonus").value = saved.pay_bonus;
+        badge.innerText = "저장된 데이터"; badge.className = "badge bg-success";
+    } else {
+        // 2) 없으면 연봉 기준 자동 계산
+        const annual = Number(document.getElementById("editSalary").value) || 0;
+        const monthly = Math.floor(annual / 12);
+        
+        // 비과세 적용
+        const meal = Math.min(settings.limit_meal, 200000); // 보통 식대는 포함 or 별도 (여기선 포함 가정 후 분리)
+        // 로직: 월급에 포함되어 있다고 가정하고 분리
+        // 기본급 = 월급 - 비과세항목들
+        let basic = monthly - meal; // 차량 등은 0으로 가정
+        
+        document.getElementById("payBasic").value = basic > 0 ? basic : monthly;
+        document.getElementById("payMeal").value = meal;
+        document.getElementById("payCar").value = 0;
+        document.getElementById("payChild").value = 0;
+        document.getElementById("payBonus").value = 0;
+        badge.innerText = "예상 (미저장)"; badge.className = "badge bg-secondary";
+    }
+}
+
+async function saveSalary() {
+    const month = document.getElementById("salaryMonth").value;
+    const p_basic = Number(document.getElementById("payBasic").value);
+    const p_meal = Number(document.getElementById("payMeal").value);
+    const p_car = Number(document.getElementById("payCar").value);
+    const p_child = Number(document.getElementById("payChild").value);
+    const p_bonus = Number(document.getElementById("payBonus").value);
+    
+    const p_total = p_basic + p_meal + p_car + p_child + p_bonus;
+    const tax_base = p_total - (p_meal + p_car + p_child); // 비과세 제외 (단순화)
+
+    // 세금 계산 (약식)
+    const pen = Math.floor(tax_base * (settings.rate_pension / 100));
+    const hlt = Math.floor(tax_base * (settings.rate_health / 100));
+    const care = Math.floor(hlt * (settings.rate_care / 100)); // 건보료의 %
+    const emp = Math.floor(tax_base * (settings.rate_employ / 100));
+    const inc = Math.floor(tax_base * (settings.rate_income / 100)); // 간이세액 %
+    const loc = Math.floor(inc * 0.1);
+    
+    const d_total = pen + hlt + care + emp + inc + loc;
+    const net = p_total - d_total;
+
+    const payload = {
+        emp_id: currentEmpId, emp_name: currentEmpName, year_month: month,
+        pay_basic: p_basic, pay_meal: p_meal, pay_car: p_car, pay_child: p_child, pay_bonus: p_bonus, pay_total: p_total,
+        ded_pension: pen, ded_health: hlt, ded_care: care, ded_employ: emp, ded_income: inc, ded_local: loc, ded_total: d_total,
+        net_pay: net
+    };
+
+    // Upsert (기존 있으면 수정, 없으면 추가) -> year_month + emp_id가 유니크해야 함.
+    // 하지만 Supabase 기본 insert는 PK 충돌시 에러. select 후 분기하거나 id 확인 필요.
+    // 편의상 delete 후 insert (가장 확실)
+    await _supabase.from('hr_salary').delete().eq('emp_id', currentEmpId).eq('year_month', month);
+    await _supabase.from('hr_salary').insert(payload);
+    
+    showAlert("급여가 확정되었습니다."); loadSalaryData();
+}
+
+// 6. 근태 (휴가)
+async function loadLeave() {
+    // 1) 자동 발생 (입사일 기준)
+    let generated = 0;
+    const { data: emp } = await _supabase.from('ref_employees').select('hire_date').eq('emp_id', currentEmpId).single();
+    if(emp && emp.hire_date) {
+        const join = new Date(emp.hire_date);
+        const now = new Date();
+        const diffY = now.getFullYear() - join.getFullYear();
+        if(diffY < 1) generated = (now.getMonth() - join.getMonth()); // 1년 미만
+        else generated = 15; // 1년 이상 (단순화)
+    }
+    
+    // 2) 조정 내역
+    let adjusted = 0;
+    const { data: adjs } = await _supabase.from('hr_leave_adj').select('*').eq('emp_id', currentEmpId);
+    if(adjs) adjs.forEach(a => { if(a.adj_type==='지급') adjusted+=Number(a.days); else adjusted-=Number(a.days); });
+    
+    // 3) 사용 내역 (결재 완료된 건)
+    let used = 0;
+    const { data: apps } = await _supabase.from('ref_approval').select('amount').eq('drafter_id', currentEmpId).eq('doc_type', '휴가').eq('status', '완료');
+    if(apps) apps.forEach(a => used+=Number(a.amount));
+    
+    document.getElementById("displayLeaveRemain").innerText = (generated + adjusted - used) + "일";
+}
+
+async function saveLog() {
+    const type = document.getElementById("logType").value; // 지급/차감
+    const val = Number(document.getElementById("logValue").value);
+    const reason = document.getElementById("logReason").value;
+    
+    if(!val || !reason) return showAlert("일수와 사유를 입력하세요.");
+    
+    await _supabase.from('hr_leave_adj').insert({
+        emp_id: currentEmpId,
+        adj_type: type,
+        days: val,
+        reason: reason
+    });
+    showAlert("반영되었습니다.");
+    document.getElementById("logValue").value = "";
+    document.getElementById("logReason").value = "";
+    loadLeave();
+}
+</script>
+</body>
+</html>
