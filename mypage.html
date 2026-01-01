@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>마이페이지</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <style>
+    body { background-color: #f0f2f5; padding: 20px; font-family: 'Segoe UI', sans-serif; }
+    .main-container { max-width: 900px; margin: 0 auto; padding-bottom: 50px; }
+    .hidden { display: none !important; }
+    .profile-card { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; align-items: center; }
+    .profile-icon { width: 70px; height: 70px; background: #e9ecef; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; margin-right: 20px; }
+    .leave-card { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .leave-num { font-size: 1.5rem; font-weight: bold; color: #0d6efd; }
+    .nav-tabs .nav-link { color: #495057; cursor: pointer; }
+    .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; }
+    .tab-content { background: white; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 10px 10px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+    .salary-blur { filter: blur(6px); transition: filter 0.3s; cursor: pointer; user-select: none; }
+    .salary-blur:hover { filter: blur(0); }
+  </style>
+</head>
+<body>
+
+<div class="main-container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold m-0">👤 My Page</h4>
+    <button onclick="location.href='index.html'" class="btn btn-outline-secondary btn-sm">🏠 메뉴로</button>
+  </div>
+
+  <div class="profile-card">
+    <div class="profile-icon">👤</div>
+    <div>
+      <h4 class="fw-bold mb-1"><span id="dspName">Loading...</span> <span class="badge bg-primary rounded-pill fs-6" id="dspRank">-</span></h4>
+      <div class="text-muted">
+        <span id="dspDept">-</span> | 
+        입사일: <span id="dspJoin">-</span> 
+        (<span id="dspTenure" class="text-primary fw-bold">-</span>)
+      </div>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-4"><div class="leave-card"><div class="text-muted small">총 연차</div><div class="leave-num text-dark" id="lvTotal">0</div></div></div>
+    <div class="col-4"><div class="leave-card"><div class="text-muted small">사용</div><div class="leave-num text-danger" id="lvUsed">0</div></div></div>
+    <div class="col-4"><div class="leave-card"><div class="text-muted small">잔여</div><div class="leave-num text-primary" id="lvRemain">0</div></div></div>
+  </div>
+
+  <ul class="nav nav-tabs" id="myTab" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabInfo">내 정보 수정</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSalary">💰 급여 명세서</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCert">📜 증명서/계약서</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabNotice">📢 공지사항</button></li>
+  </ul>
+
+  <div class="tab-content">
+    
+    <div class="tab-pane fade show active" id="tabInfo">
+      <div class="alert alert-light border small mb-3">ℹ️ 성명, 직급, 입사일 등 핵심 정보는 관리자만 수정 가능합니다.</div>
+      <div class="row mb-3">
+        <div class="col-md-6 mb-3"><label class="small text-muted">급여 계좌</label><input type="text" class="form-control" id="myBank"></div>
+        <div class="col-md-6 mb-3"><label class="small text-muted">계좌번호</label><input type="text" class="form-control" id="myAccount"></div>
+        <div class="col-12 mb-3"><label class="small text-muted">주소</label><input type="text" class="form-control" id="myAddress"></div>
+        <div class="col-md-6 mb-3"><label class="small text-muted">전화번호</label><input type="text" class="form-control" id="myPhone"></div>
+      </div>
+      <button type="button" class="btn btn-primary w-100" onclick="updateInfo()">💾 정보 수정 저장</button>
+    </div>
+
+    <div class="tab-pane fade" id="tabSalary">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="input-group" style="max-width: 250px;">
+          <input type="month" class="form-control" id="salaryMonth">
+          <button class="btn btn-primary" onclick="searchSalary()">조회</button>
+        </div>
+        <button class="btn btn-sm btn-outline-dark hidden" id="btnPrintSalary" onclick="printSalaryPopup()">🖨️ 명세서 인쇄</button>
+      </div>
+      <div id="salaryResult" class="hidden">
+        <div class="alert alert-warning small py-2">🔒 <strong>보안 주의:</strong> 금액 부분을 마우스로 올리거나 클릭하면 블라인드가 해제됩니다.</div>
+        <div class="card p-3 shadow-sm border-0">
+          <h5 class="text-center fw-bold mb-3"><span id="sl_ym"></span> 급여명세서</h5>
+          <div class="row g-0 border">
+            <div class="col-6 border-end">
+              <div class="bg-light p-2 text-center fw-bold border-bottom">지급 내역</div>
+              <table class="table table-sm table-borderless mb-0 small">
+                <tr><td class="ps-3">기본급</td><td class="text-end pe-3"><span class="salary-blur" id="sl_basic">0</span></td></tr>
+                <tr><td class="ps-3">식 대</td><td class="text-end pe-3"><span class="salary-blur" id="sl_meal">0</span></td></tr>
+                <tr><td class="ps-3">차량유지비</td><td class="text-end pe-3"><span class="salary-blur" id="sl_car">0</span></td></tr>
+                <tr><td class="ps-3">육아수당</td><td class="text-end pe-3"><span class="salary-blur" id="sl_child">0</span></td></tr>
+                <tr><td class="ps-3 text-primary">성과급</td><td class="text-end pe-3"><span class="salary-blur" id="sl_bonus">0</span></td></tr>
+                <tr class="border-top"><td class="ps-3 fw-bold">지급 합계</td><td class="text-end pe-3 fw-bold text-primary"><span class="salary-blur" id="sl_p_total">0</span></td></tr>
+              </table>
+            </div>
+            <div class="col-6">
+              <div class="bg-light p-2 text-center fw-bold border-bottom">공제 내역</div>
+              <table class="table table-sm table-borderless mb-0 small">
+                <tr><td class="ps-3">국민연금</td><td class="text-end pe-3"><span class="salary-blur" id="sl_pension">0</span></td></tr>
+                <tr><td class="ps-3">건강보험</td><td class="text-end pe-3"><span class="salary-blur" id="sl_health">0</span></td></tr>
+                <tr><td class="ps-3">장기요양</td><td class="text-end pe-3"><span class="salary-blur" id="sl_care">0</span></td></tr>
+                <tr><td class="ps-3">고용보험</td><td class="text-end pe-3"><span class="salary-blur" id="sl_employ">0</span></td></tr>
+                <tr><td class="ps-3">소득세</td><td class="text-end pe-3"><span class="salary-blur" id="sl_income">0</span></td></tr>
+                <tr><td class="ps-3">지방소득세</td><td class="text-end pe-3"><span class="salary-blur" id="sl_local">0</span></td></tr>
+                <tr class="border-top"><td class="ps-3 fw-bold">공제 합계</td><td class="text-end pe-3 fw-bold text-danger"><span class="salary-blur" id="sl_d_total">0</span></td></tr>
+              </table>
+            </div>
+          </div>
+          <div class="mt-3 p-3 bg-primary bg-opacity-10 rounded text-center border border-primary">
+            <span class="text-primary me-2">실 수령액</span>
+            <h3 class="fw-bold m-0 d-inline-block"><span class="salary-blur" id="sl_net">0</span> 원</h3>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tabCert">
+      <div class="card p-3 border mb-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <div><h6 class="fw-bold mb-1">📄 재직증명서</h6><small class="text-muted">은행/관공서 제출용 (인쇄)</small></div>
+          <button class="btn btn-outline-primary" id="btnCert" onclick="openCertModal()">발급 신청</button>
+        </div>
+      </div>
+      <div class="card p-3 border">
+        <div class="d-flex justify-content-between align-items-center">
+          <div><h6 class="fw-bold mb-1">🤝 근로계약서</h6><small class="text-muted">서명 완료된 계약서 (PDF)</small></div>
+          <button class="btn btn-secondary" id="btnContract" onclick="viewContract()" disabled>등록된 계약서 없음</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tabNotice">
+      <div class="list-group" id="noticeList"><div class="text-center p-3 text-muted">로딩 중...</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="certPurposeModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title fw-bold">발급 용도</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <label class="form-label small text-muted">용도 입력</label>
+        <input type="text" id="certPurposeInput" class="form-control" placeholder="예: 금융기관 제출용">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary btn-sm" onclick="runCertIssue()">발급(인쇄)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// [설정] 수퍼베이스 연결 (Index.html과 동일한 _supabase 사용)
+// ============================================================
+const SUPABASE_URL = 'https://ifdqlwxgqgsvnawmhlfc.supabase.co'; 
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmZHFsd3hncWdzdm5hd21obGZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxODQ3NDIsImV4cCI6MjA4Mjc2MDc0Mn0.UKUvMOl58KuDH24seC3oSgla7mK5lr-vXjqtpalnl6k';
+const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let myInfo = null;
+let currentSalaryData = null;
+let purposeModal;
+
+window.onload = async function() {
+    purposeModal = new bootstrap.Modal(document.getElementById('certPurposeModal'));
+
+    // 1. 로그인 정보 확인
+    const stored = localStorage.getItem('erp_user');
+    if(!stored) { alert("로그인이 필요합니다."); location.href='index.html'; return; }
+    myInfo = JSON.parse(stored);
+
+    // 2. 이번달 세팅
+    const now = new Date();
+    document.getElementById("salaryMonth").value = now.toISOString().slice(0, 7); // YYYY-MM
+
+    // 3. 데이터 로딩 (병렬 처리)
+    await Promise.all([
+        loadProfile(),
+        loadLeave(),
+        loadNotices()
+    ]);
+};
+
+// =========================================
+// [기능 1] 프로필 및 정보 수정
+// =========================================
+async function loadProfile() {
+    const { data, error } = await _supabase.from('ref_employees').select('*').eq('emp_id', myInfo.emp_id).single();
+    if(error) return alert("정보 로딩 실패");
+    
+    myInfo = data; // 최신 정보로 갱신
+    localStorage.setItem('erp_user', JSON.stringify(data)); // 로컬스토리지도 갱신
+
+    document.getElementById("dspName").innerText = data.emp_name;
+    document.getElementById("dspRank").innerText = data.position;
+    document.getElementById("dspDept").innerText = data.department;
+    document.getElementById("dspJoin").innerText = data.hire_date || '-';
+    
+    // 재직기간 계산
+    if(data.hire_date) {
+        const join = new Date(data.hire_date);
+        const diff = new Date() - join;
+        const years = Math.floor(diff / (1000*60*60*24*365));
+        const months = Math.floor((diff % (1000*60*60*24*365)) / (1000*60*60*24*30));
+        document.getElementById("dspTenure").innerText = `${years}년 ${months}월차`;
+    }
+
+    document.getElementById("myBank").value = data.bank_name || "";
+    document.getElementById("myAccount").value = data.account_number || "";
+    document.getElementById("myAddress").value = data.address || "";
+    document.getElementById("myPhone").value = data.phone || "";
+
+    // 계약서 버튼 (file_links 컬럼에 계약서 URL이 있다고 가정)
+    if(data.contract_url) {
+        const btn = document.getElementById("btnContract");
+        btn.disabled = false;
+        btn.className = "btn btn-outline-primary";
+        btn.innerText = "📄 계약서 보기";
+        btn.onclick = () => window.open(data.contract_url, '_blank');
+    }
+}
+
+async function updateInfo() {
+    if(!confirm("정보를 수정하시겠습니까?")) return;
+
+    const updates = {
+        bank_name: document.getElementById("myBank").value,
+        account_number: document.getElementById("myAccount").value,
+        address: document.getElementById("myAddress").value,
+        phone: document.getElementById("myPhone").value
+    };
+
+    const { error } = await _supabase.from('ref_employees').update(updates).eq('emp_id', myInfo.emp_id);
+    
+    if(error) alert("수정 실패: " + error.message);
+    else alert("정보가 수정되었습니다.");
+}
+
+// =========================================
+// [기능 2] 연차 정보 (hr_leave)
+// =========================================
+async function loadLeave() {
+    const { data } = await _supabase.from('hr_leave').select('*').eq('emp_id', myInfo.emp_id).single();
+    if(data) {
+        const total = Number(data.remaining_days) + Number(data.used_days); // 총 연차 역산 (임시)
+        document.getElementById("lvTotal").innerText = total; // 혹은 별도 컬럼 생성 필요
+        document.getElementById("lvUsed").innerText = data.used_days;
+        document.getElementById("lvRemain").innerText = data.remaining_days;
+    }
+}
+
+// =========================================
+// [기능 3] 급여 명세서 조회 (hr_salary)
+// =========================================
+async function searchSalary() {
+    const ym = document.getElementById("salaryMonth").value;
+    if(!ym) return alert("월을 선택하세요.");
+
+    const { data, error } = await _supabase
+        .from('hr_salary')
+        .select('*')
+        .eq('emp_id', myInfo.emp_id)
+        .eq('year_month', ym)
+        .single();
+
+    const resArea = document.getElementById("salaryResult");
+    const btnPrint = document.getElementById("btnPrintSalary");
+
+    if(!data || error) {
+        alert("해당 월의 급여 내역이 없습니다.");
+        resArea.classList.add("hidden");
+        btnPrint.classList.add("hidden");
+        return;
+    }
+
+    currentSalaryData = data;
+    resArea.classList.remove("hidden");
+    btnPrint.classList.remove("hidden");
+    
+    document.getElementById("sl_ym").innerText = ym;
+    
+    // 금액 바인딩 함수
+    const setVal = (id, val) => document.getElementById(id).innerText = Number(val).toLocaleString();
+    
+    setVal("sl_basic", data.pay_basic);
+    setVal("sl_meal", data.pay_meal);
+    setVal("sl_car", data.pay_car);
+    setVal("sl_child", data.pay_child);
+    setVal("sl_bonus", data.pay_bonus);
+    setVal("sl_p_total", data.pay_total);
+    
+    setVal("sl_pension", data.ded_pension);
+    setVal("sl_health", data.ded_health);
+    setVal("sl_care", data.ded_care);
+    setVal("sl_employ", data.ded_employ);
+    setVal("sl_income", data.ded_income);
+    setVal("sl_local", data.ded_local);
+    setVal("sl_d_total", data.ded_total);
+    
+    setVal("sl_net", data.net_pay);
+}
+
+function printSalaryPopup() {
+    if(!currentSalaryData) return;
+    printDocument('salary', currentSalaryData);
+}
+
+// =========================================
+// [기능 4] 증명서 발급 (Client Side Print)
+// =========================================
+function openCertModal() {
+    document.getElementById('certPurposeInput').value = "";
+    purposeModal.show();
+}
+
+function runCertIssue() {
+    const purpose = document.getElementById('certPurposeInput').value;
+    if(!purpose) return alert("용도를 입력해주세요.");
+    
+    purposeModal.hide();
+    
+    // 재직증명서 데이터 구성
+    const certData = {
+        name: myInfo.emp_name,
+        dept: myInfo.department,
+        pos: myInfo.position,
+        join: myInfo.hire_date,
+        address: myInfo.address,
+        purpose: purpose,
+        today: new Date().toLocaleDateString()
+    };
+    
+    printDocument('cert', certData);
+}
+
+// =========================================
+// [기능 5] 공지사항 (ref_notice)
+// =========================================
+async function loadNotices() {
+    const el = document.getElementById("noticeList");
+    // 최근 5개만 조회
+    const { data } = await _supabase.from('ref_notice').select('*').order('created_at', {ascending: false}).limit(5);
+    
+    el.innerHTML = "";
+    if(!data || data.length === 0) {
+        el.innerHTML = '<div class="text-center p-3 text-muted">등록된 공지사항이 없습니다.</div>';
+        return;
+    }
+
+    data.forEach(n => {
+        const div = document.createElement("div");
+        div.className = "list-group-item";
+        div.innerHTML = `
+            <div class="d-flex justify-content-between">
+                <h6 class="mb-1 fw-bold">${n.title}</h6>
+                <small class="text-muted">${new Date(n.created_at).toLocaleDateString()}</small>
+            </div>
+            <p class="mb-1 small text-dark">${n.content}</p>
+            <small class="text-secondary">작성자: ${n.writer || '관리자'}</small>
+        `;
+        el.appendChild(div);
+    });
+}
+
+// =========================================
+// [공통] 인쇄 팝업 생성기 (명세서 & 증명서)
+// =========================================
+function printDocument(type, data) {
+    const win = window.open('', '', 'width=800,height=900');
+    let html = `<html><head><title>인쇄 미리보기</title><style>body{font-family:"Malgun Gothic",serif;padding:40px;text-align:center;} table{width:100%;border-collapse:collapse;margin:20px 0;} th,td{border:1px solid #000;padding:8px;} th{background:#eee;} .sign{margin-top:50px;font-size:20px;font-weight:bold;}</style></head><body>`;
+    
+    if(type === 'salary') {
+        html += `
+            <h2>${data.year_month} 급여명세서</h2>
+            <table>
+                <tr><th>성명</th><td>${myInfo.emp_name}</td><th>부서</th><td>${myInfo.department}</td></tr>
+                <tr><th>지급총액</th><td>${Number(data.pay_total).toLocaleString()}</td><th>공제총액</th><td>${Number(data.ded_total).toLocaleString()}</td></tr>
+                <tr><th colspan="4" style="font-size:18px;">실수령액: ${Number(data.net_pay).toLocaleString()} 원</th></tr>
+            </table>
+            <p>귀하의 노고에 감사드립니다.</p>
+        `;
+    } else if(type === 'cert') {
+        html += `
+            <h1 style="text-decoration:underline; margin-bottom:50px;">재 직 증 명 서</h1>
+            <table>
+                <tr><th>성 명</th><td>${data.name}</td><th>직 위</th><td>${data.pos}</td></tr>
+                <tr><th>소 속</th><td>${data.dept}</td><th>생년월일</th><td>-</td></tr>
+                <tr><th>주 소</th><td colspan="3">${data.address}</td></tr>
+                <tr><th>입사일</th><td colspan="3">${data.join}</td></tr>
+                <tr><th>용 도</th><td colspan="3">${data.purpose}</td></tr>
+            </table>
+            <p style="margin-top:30px;">위 사람은 상기와 같이 재직하고 있음을 증명합니다.</p>
+            <p style="margin-top:30px;">${data.today}</p>
+            <div class="sign">용인모두의햇빛협동조합 이사장 (인)</div>
+        `;
+    }
+    
+    html += `<script>window.print();<\/script></body></html>`;
+    win.document.write(html);
+    win.document.close();
+}
+</script>
+</body>
+</html>
