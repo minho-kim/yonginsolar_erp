@@ -9,11 +9,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
   <style>
-    /* [수정] flex-direction: column 추가 -> 내용물을 세로로 쌓음 */
     body { 
         background-color: #f8f9fa; 
         display: flex; 
-        flex-direction: column; /* 핵심: 세로 정렬 */
+        flex-direction: column; 
         align-items: center; 
         justify-content: center; 
         min-height: 100vh; 
@@ -94,81 +93,37 @@
     </small>
   </div>
 
-<div class="modal fade" id="patchNoteModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header bg-dark text-white">
-        <h5 class="modal-title">🚀 업데이트 히스토리</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body p-0">
-        <div id="patchList" class="list-group list-group-flush">
-            </div>
-      </div>
-      <div class="modal-footer bg-light">
-        <small class="text-muted me-auto">지속적으로 발전하는 시스템이 되겠습니다.</small>
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script>
-// ============================================================
-// [설정] 수퍼베이스 연결
-// ============================================================
 const SUPABASE_URL = 'https://ifdqlwxgqgsvnawmhlfc.supabase.co'; 
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmZHFsd3hncWdzdm5hd21obGZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxODQ3NDIsImV4cCI6MjA4Mjc2MDc0Mn0.UKUvMOl58KuDH24seC3oSgla7mK5lr-vXjqtpalnl6k';
-
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const REDIRECT_URL = 'https://minho-kim.github.io/yonginsolar_erp/index.html'; 
 
-// ============================================================
-// [기능 1] 페이지 초기화 및 로그인 체크
-// ============================================================
+// 로그인 관련 로직 (패치노트 제외한 나머지)
 window.onload = async function() {
-    // 1. 현재 로그인 상태 확인
     const { data: { session } } = await _supabase.auth.getSession();
-
-    if (session) {
-        await loadUserInfo(session.user.email);
-    } else {
-        showScreen('loginForm');
-    }
+    if (session) { await loadUserInfo(session.user.email); } 
+    else { showScreen('loginForm'); }
     
-    // 2. 버전 정보 로드 (로그인 여부 상관없이)
-    loadCurrentVersion();
+    // [중요] patch_note.js가 로드된 후 실행되도록 둠 (patch_note.js 내부의 DOMContentLoaded가 처리함)
 };
 
-// 사용자 정보 불러오기
 async function loadUserInfo(email) {
-    const { data, error } = await _supabase
-        .from('ref_employees')
-        .select('*')
-        .eq('email', email)
-        .single();
-
+    const { data, error } = await _supabase.from('ref_employees').select('*').eq('email', email).single();
     if (error || !data) {
-        alert("직원 정보를 찾을 수 없습니다. 관리자에게 문의하세요.");
-        _supabase.auth.signOut();
-        showScreen('loginForm');
-        return;
+        alert("직원 정보를 찾을 수 없습니다."); _supabase.auth.signOut(); showScreen('loginForm'); return;
     }
-
     localStorage.setItem('erp_user', JSON.stringify(data));
-
     document.getElementById('userName').innerText = data.emp_name + " 님";
-    document.getElementById('userTeam').innerText = data.department || "소속없음";
+    document.getElementById('userTeam').innerText = data.department || "-";
     document.getElementById('userRank').innerText = data.position || "";
 
-    // 권한별 메뉴 보이기
     if (data.role === 'admin' || data.role === 'manager' || data.position === '국장' || data.position === '이사') {
         document.getElementById('btnAccounting').classList.remove('hidden');
     }
     if (data.role === 'admin' || data.position === '국장') {
         document.getElementById('btnAdmin').classList.remove('hidden');
     }
-
     showScreen('menuArea');
 }
 
@@ -179,93 +134,25 @@ function showScreen(id) {
     document.getElementById(id).classList.remove('hidden');
 }
 
-// 매직 링크 발송
 async function sendMagicLink() {
     const email = document.getElementById('emailInput').value;
     const btn = document.getElementById('btnSend');
     const msg = document.getElementById('statusMsg');
-
     if (!email) return alert("이메일을 입력해주세요.");
-
     btn.disabled = true; btn.innerText = "전송 중...";
-
-    const { error } = await _supabase.auth.signInWithOtp({
-        email: email,
-        options: { emailRedirectTo: REDIRECT_URL }
-    });
-
-    if (error) {
-        alert("전송 실패: " + error.message);
-        btn.disabled = false; btn.innerText = "📧 로그인 링크 받기";
-    } else {
-        btn.classList.add("hidden");
-        msg.style.display = "block";
-        msg.innerHTML = `<strong>📩 전송 완료!</strong><br>메일함의 링크를 클릭하면<br>자동으로 이 메뉴 화면으로 돌아옵니다.`;
-    }
+    const { error } = await _supabase.auth.signInWithOtp({ email: email, options: { emailRedirectTo: REDIRECT_URL } });
+    if (error) { alert("전송 실패: " + error.message); btn.disabled = false; btn.innerText = "📧 로그인 링크 받기"; } 
+    else { btn.classList.add("hidden"); msg.style.display = "block"; msg.innerHTML = `<strong>📩 전송 완료!</strong><br>메일함 확인해주세요.`; }
 }
 
-// 로그아웃
 async function logout() {
     if(confirm("로그아웃 하시겠습니까?")) {
-        await _supabase.auth.signOut();
-        localStorage.removeItem('erp_user');
-        location.reload();
+        await _supabase.auth.signOut(); localStorage.removeItem('erp_user'); location.reload();
     }
-}
-
-// ============================================================
-// [기능 2] 패치노트 관련 함수
-// ============================================================
-async function loadCurrentVersion() {
-    const { data } = await _supabase
-        .from('sys_patch_notes')
-        .select('version')
-        .order('release_date', { ascending: false })
-        .order('id', { ascending: false })
-        .limit(1)
-        .single();
-        
-    if(data) {
-        document.getElementById("currentVersion").innerText = data.version;
-    }
-}
-
-async function openPatchModal() {
-    const modal = new bootstrap.Modal(document.getElementById('patchNoteModal'));
-    const listEl = document.getElementById("patchList");
-    
-    listEl.innerHTML = '<div class="p-4 text-center"><div class="spinner-border text-primary"></div></div>';
-    modal.show();
-    
-    const { data } = await _supabase
-        .from('sys_patch_notes')
-        .select('*')
-        .order('release_date', { ascending: false })
-        .order('id', { ascending: false });
-        
-    if(!data || data.length === 0) {
-        listEl.innerHTML = '<div class="p-4 text-center text-muted">업데이트 내역이 없습니다.</div>';
-        return;
-    }
-    
-    listEl.innerHTML = data.map(note => {
-        const contentHtml = note.content.replace(/\\n/g, '<br>').replace(/\n/g, '<br>');
-        const badge = note.is_major 
-            ? '<span class="badge bg-danger ms-2">Major Update</span>' 
-            : '<span class="badge bg-secondary ms-2">Patch</span>';
-            
-        return `
-            <div class="list-group-item p-3">
-                <div class="d-flex w-100 justify-content-between align-items-center mb-2">
-                    <h6 class="mb-0 fw-bold text-primary">v${note.version} ${badge}</h6>
-                    <small class="text-muted">${note.release_date}</small>
-                </div>
-                <h6 class="fw-bold mb-2">${note.title}</h6>
-                <p class="mb-1 small text-secondary" style="line-height: 1.5;">${contentHtml}</p>
-            </div>
-        `;
-    }).join("");
 }
 </script>
+
+<script src="patch_note.js"></script>
+
 </body>
 </html>
