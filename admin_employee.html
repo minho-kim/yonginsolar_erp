@@ -411,31 +411,42 @@ async function openDetail(u) {
 }
 
 // [핵심] 파일 업로드 함수 (Supabase Storage)
-// [수정] 모달 겹침 방지 + DB 저장 로직 강화
+// [수정] 모달 겹침 방지 + DB 저장 로직 강화// [수정] 기존 파일 삭제 후 업로드 (용량 절약)
 async function uploadContract() {
     const fileInput = document.getElementById("contractFile");
     if (fileInput.files.length === 0) return showAlert("파일을 선택해주세요.");
 
     const file = fileInput.files[0];
     const fileExt = file.name.split('.').pop();
-    // 파일명: 사번_타임스탬프 (특수문자 제거)
     const fileName = `${currentEmpId}_contract_${Date.now()}.${fileExt}`;
     
-    // 1. 로딩 시작
     showLoading(); 
 
     try {
-        // 2. 스토리지에 파일 업로드
+        // 1. [신규 로직] 기존에 등록된 파일이 있다면 삭제
+        // DB에서 현재 저장된 경로를 먼저 확인
+        const { data: emp } = await _supabase
+            .from('ref_employees')
+            .select('contract_url')
+            .eq('emp_id', currentEmpId)
+            .single();
+
+        if (emp && emp.contract_url && !emp.contract_url.startsWith('http')) {
+            // 기존 파일이 있고, 보안 경로(파일명)라면 삭제 시도
+            await _supabase.storage.from('contracts').remove([emp.contract_url]);
+            console.log("기존 파일 삭제 완료:", emp.contract_url);
+        }
+
+        // 2. 새 파일 스토리지 업로드
         const { data, error } = await _supabase.storage
             .from('contracts')
             .upload(fileName, file, { upsert: true });
 
         if (error) throw new Error("스토리지 업로드 실패: " + error.message);
 
-        // 3. DB에 파일 경로(path) 업데이트
-        // data.path 예: "2024001_contract_170....pdf"
         const filePath = data.path; 
 
+        // 3. DB 업데이트
         const { error: dbError } = await _supabase
             .from('ref_employees')
             .update({ contract_url: filePath }) 
@@ -443,14 +454,13 @@ async function uploadContract() {
 
         if (dbError) throw new Error("DB 저장 실패: " + dbError.message);
 
-        // 4. [중요] 로딩창 먼저 끄기 (모달 겹침 방지)
         hideLoading();
-
-        // 5. 약간의 딜레이 후 성공 알림 및 화면 갱신
+        
+        // 4. 화면 갱신 (딜레이 후)
         setTimeout(async () => {
-            alert("계약서가 등록되었습니다."); // 모달 대신 기본 alert 사용 (가장 안전)
+            alert("계약서가 등록되었습니다.");
             
-            // 화면 즉시 갱신 (Signed URL 받아와서 버튼 만들기)
+            // 바로보기 버튼 갱신
             const { data: signedData } = await _supabase.storage
                 .from('contracts')
                 .createSignedUrl(filePath, 3600);
@@ -458,21 +468,15 @@ async function uploadContract() {
             if (signedData) {
                 document.getElementById("contractView").innerHTML = 
                     `<a href="${signedData.signedUrl}" target="_blank" class="btn btn-sm btn-info w-100 text-white">📄 계약서 보기 (보안)</a>`;
-                // 삭제를 위해 hidden 값 업데이트
                 document.getElementById("hiddenContractUrl").value = filePath;
-                // 입력창 초기화
                 fileInput.value = "";
             }
-            loadList(); // 전체 목록 리로드
-        }, 300); // 0.3초 딜레이
+            loadList();
+        }, 300);
 
     } catch (err) {
-        // 에러 발생 시
         hideLoading();
-        setTimeout(() => {
-            alert("오류 발생: " + err.message);
-        }, 300);
-        console.error(err);
+        setTimeout(() => alert("오류 발생: " + err.message), 300);
     }
 }
 
