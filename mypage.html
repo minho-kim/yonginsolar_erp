@@ -270,11 +270,22 @@ function openCertModal() {
     purposeModal.show();
 }
 
-function runCertIssue() {
+async function runCertIssue() {
     const purpose = document.getElementById('certPurposeInput').value;
     if(!purpose) return alert("용도를 입력해주세요.");
     purposeModal.hide();
     
+    // [추가된 기능] 발급 대장(log_cert)에 기록
+    const { error } = await _supabase.from('log_cert').insert({
+        emp_id: myInfo.emp_id,
+        emp_name: myInfo.emp_name,
+        cert_type: '재직증명서',
+        purpose: purpose
+    });
+
+    // 에러가 나도 인쇄는 진행 (사용자 불편 최소화), 콘솔에만 표시
+    if(error) console.error("발급 기록 실패:", error);
+
     let birthStr = "-";
     if (myInfo.rrn) {
         const y = myInfo.rrn.substring(0,2);
@@ -284,8 +295,6 @@ function runCertIssue() {
         birthStr = `${prefix}${y}년 ${m}월 ${d}일`;
     }
 
-    // [핵심] 주소와 회사명 중복 제거 로직
-    // DB 주소에서 회사명을 미리 제거한 깨끗한 주소 만들기
     let cleanAddr = companyInfo.company_address;
     if (cleanAddr) {
         cleanAddr = cleanAddr.replace('용인모두의 햇빛협동조합', '')
@@ -305,7 +314,7 @@ function runCertIssue() {
         today: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }),
         chairman: companyInfo.chairman_name || "이사장",
         compName: companyInfo.company_name,
-        compAddr: cleanAddr, // 중복 제거된 주소 전달
+        compAddr: cleanAddr,
         contact: companyInfo.company_contact,
         seal: companyInfo.seal_url
     };
@@ -394,7 +403,6 @@ function printDocument(type, data) {
         </div>
         `;
     } else if(type === 'salary') {
-        // 급여명세서 (기존 유지)
         html += `
             <h2 style="text-decoration:none; border-bottom:2px solid #333; padding-bottom:10px;">${data.yearMonth} 급여명세서</h2>
             <table style="margin-top:30px;">
