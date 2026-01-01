@@ -77,7 +77,94 @@
       <button class="btn btn-link text-secondary btn-sm mt-4" onclick="logout()">로그아웃</button>
     </div>
   </div>
+<div class="text-center mt-4 mb-3">
+  <small class="text-muted" style="cursor: pointer; text-decoration: underline;" onclick="openPatchModal()">
+    Ver <span id="currentVersion">Loading...</span> (Release Notes)
+  </small>
+</div>
 
+<div class="modal fade" id="patchNoteModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title">🚀 업데이트 히스토리</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div id="patchList" class="list-group list-group-flush">
+            </div>
+      </div>
+      <div class="modal-footer bg-light">
+        <small class="text-muted me-auto">지속적으로 발전하는 시스템이 되겠습니다.</small>
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 기존 supabase 설정 아래에 추가하세요
+
+// 1. 최신 버전 조회 및 표시
+async function loadCurrentVersion() {
+    const { data } = await _supabase
+        .from('sys_patch_notes')
+        .select('version')
+        .order('release_date', { ascending: false })
+        .order('id', { ascending: false }) // 같은 날짜면 ID 역순
+        .limit(1)
+        .single();
+        
+    if(data) {
+        document.getElementById("currentVersion").innerText = data.version;
+    }
+}
+
+// 2. 패치노트 모달 열기
+async function openPatchModal() {
+    const modal = new bootstrap.Modal(document.getElementById('patchNoteModal'));
+    const listEl = document.getElementById("patchList");
+    
+    listEl.innerHTML = '<div class="p-4 text-center"><div class="spinner-border text-primary"></div></div>';
+    modal.show();
+    
+    const { data } = await _supabase
+        .from('sys_patch_notes')
+        .select('*')
+        .order('release_date', { ascending: false })
+        .order('id', { ascending: false });
+        
+    if(!data || data.length === 0) {
+        listEl.innerHTML = '<div class="p-4 text-center text-muted">업데이트 내역이 없습니다.</div>';
+        return;
+    }
+    
+    // 리스트 렌더링 (최신순)
+    listEl.innerHTML = data.map(note => {
+        // 줄바꿈 문자(\n)를 <br>로 변환
+        const contentHtml = note.content.replace(/\\n/g, '<br>').replace(/\n/g, '<br>');
+        const badge = note.is_major 
+            ? '<span class="badge bg-danger ms-2">Major Update</span>' 
+            : '<span class="badge bg-secondary ms-2">Patch</span>';
+            
+        return `
+            <div class="list-group-item p-3">
+                <div class="d-flex w-100 justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0 fw-bold text-primary">v${note.version} ${badge}</h6>
+                    <small class="text-muted">${note.release_date}</small>
+                </div>
+                <h6 class="fw-bold mb-2">${note.title}</h6>
+                <p class="mb-1 small text-secondary" style="line-height: 1.5;">${contentHtml}</p>
+            </div>
+        `;
+    }).join("");
+}
+
+// 페이지 로드 시 버전 확인 실행
+document.addEventListener("DOMContentLoaded", function() {
+    loadCurrentVersion();
+});
+</script>
 <script>
 // ============================================================
 // [설정] 수퍼베이스 연결
@@ -183,94 +270,6 @@ async function logout() {
         location.reload();
     }
 }
-</script>
-  <div class="text-center mt-4 mb-3">
-  <small class="text-muted" style="cursor: pointer; text-decoration: underline;" onclick="openPatchModal()">
-    Ver <span id="currentVersion">Loading...</span> (Release Notes)
-  </small>
-</div>
-
-<div class="modal fade" id="patchNoteModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header bg-dark text-white">
-        <h5 class="modal-title">🚀 업데이트 히스토리</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body p-0">
-        <div id="patchList" class="list-group list-group-flush">
-            </div>
-      </div>
-      <div class="modal-footer bg-light">
-        <small class="text-muted me-auto">지속적으로 발전하는 시스템이 되겠습니다.</small>
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-// 기존 supabase 설정 아래에 추가하세요
-
-// 1. 최신 버전 조회 및 표시
-async function loadCurrentVersion() {
-    const { data } = await _supabase
-        .from('sys_patch_notes')
-        .select('version')
-        .order('release_date', { ascending: false })
-        .order('id', { ascending: false }) // 같은 날짜면 ID 역순
-        .limit(1)
-        .single();
-        
-    if(data) {
-        document.getElementById("currentVersion").innerText = data.version;
-    }
-}
-
-// 2. 패치노트 모달 열기
-async function openPatchModal() {
-    const modal = new bootstrap.Modal(document.getElementById('patchNoteModal'));
-    const listEl = document.getElementById("patchList");
-    
-    listEl.innerHTML = '<div class="p-4 text-center"><div class="spinner-border text-primary"></div></div>';
-    modal.show();
-    
-    const { data } = await _supabase
-        .from('sys_patch_notes')
-        .select('*')
-        .order('release_date', { ascending: false })
-        .order('id', { ascending: false });
-        
-    if(!data || data.length === 0) {
-        listEl.innerHTML = '<div class="p-4 text-center text-muted">업데이트 내역이 없습니다.</div>';
-        return;
-    }
-    
-    // 리스트 렌더링 (최신순)
-    listEl.innerHTML = data.map(note => {
-        // 줄바꿈 문자(\n)를 <br>로 변환
-        const contentHtml = note.content.replace(/\n/g, '<br>');
-        const badge = note.is_major 
-            ? '<span class="badge bg-danger ms-2">Major Update</span>' 
-            : '<span class="badge bg-secondary ms-2">Patch</span>';
-            
-        return `
-            <div class="list-group-item p-3">
-                <div class="d-flex w-100 justify-content-between align-items-center mb-2">
-                    <h6 class="mb-0 fw-bold text-primary">v${note.version} ${badge}</h6>
-                    <small class="text-muted">${note.release_date}</small>
-                </div>
-                <h6 class="fw-bold mb-2">${note.title}</h6>
-                <p class="mb-1 small text-secondary" style="line-height: 1.5;">${contentHtml}</p>
-            </div>
-        `;
-    }).join("");
-}
-
-// 페이지 로드 시 버전 확인 실행
-document.addEventListener("DOMContentLoaded", function() {
-    loadCurrentVersion();
-});
 </script>
 </body>
 </html>
