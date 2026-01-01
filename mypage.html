@@ -17,16 +17,17 @@
     .profile-card { padding: 30px; margin-bottom: 20px; display: flex; align-items: center; }
     .profile-icon { width: 70px; height: 70px; background: #e9ecef; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; margin-right: 20px; }
     
-    /* 연차 카드 스타일 (3칸으로 변경) */
+    /* 연차 카드 (3칸) */
     .leave-card { background: white; border-radius: 12px; padding: 20px 15px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); height: 100%; position: relative; }
     .leave-num { font-size: 1.6rem; font-weight: bold; color: #0d6efd; margin-top: 5px; }
-    .btn-detail { font-size: 0.75rem; position: absolute; top: 10px; right: 10px; text-decoration: none; cursor: pointer; }
+    /* 상세 버튼 스타일 */
+    .btn-detail { font-size: 0.75rem; position: absolute; top: 10px; right: 10px; text-decoration: none; cursor: pointer; color: #6c757d; }
+    .btn-detail:hover { color: #0d6efd; font-weight: bold; }
     
     .nav-tabs .nav-link { color: #495057; cursor: pointer; }
     .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; }
     .tab-content { border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 10px 10px; padding: 25px; }
 
-    /* 급여 블라인드 */
     .salary-blur { filter: blur(6px); transition: filter 0.3s; cursor: pointer; user-select: none; }
     .salary-blur:hover { filter: blur(0); }
     
@@ -59,20 +60,20 @@
   <div class="row mb-4 g-3">
     <div class="col-4">
         <div class="leave-card">
-            <div class="text-muted small fw-bold">사용 가능 (발생+조정)</div>
+            <div class="text-muted small fw-bold">사용 가능</div>
             <div class="leave-num text-dark" id="lvTotal">0</div>
         </div>
     </div>
     <div class="col-4">
         <div class="leave-card">
-            <div class="text-muted small fw-bold">사용 (결재 완료)</div>
-            <a class="btn-detail text-primary" onclick="showLeaveHistory()">🔍 상세</a>
+            <div class="text-muted small fw-bold">사용</div>
+            <span class="btn-detail" onclick="showLeaveHistory()">🔍 상세</span>
             <div class="leave-num text-danger" id="lvUsed">0</div>
         </div>
     </div>
     <div class="col-4">
         <div class="leave-card bg-primary bg-opacity-10 border border-primary">
-            <div class="text-primary small fw-bold">현재 잔여</div>
+            <div class="text-primary small fw-bold">잔여</div>
             <div class="leave-num text-primary" id="lvRemain">0</div>
         </div>
     </div>
@@ -180,7 +181,13 @@
     <div class="modal-content">
       <div class="modal-header"><h5 class="modal-title fw-bold">발급 용도</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
-        <input type="text" id="certPurposeInput" class="form-control" placeholder="예: 금융기관 제출용">
+        <label class="form-label small text-muted">제출처 선택</label>
+        <select class="form-select mb-2" id="certPurposeSelect" onchange="toggleEtcInput()">
+            <option value="관공서 제출용">관공서 제출용</option>
+            <option value="금융기관 제출용">금융기관 제출용</option>
+            <option value="기타">기타 (직접 입력)</option>
+        </select>
+        <input type="text" id="certPurposeEtc" class="form-control hidden" placeholder="용도를 입력하세요">
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-primary btn-sm" onclick="runCertIssue()">미리보기 및 인쇄</button>
@@ -198,7 +205,7 @@
       </div>
       <div class="modal-body p-0">
         <ul class="list-group list-group-flush" id="leaveHistoryList">
-            <li class="list-group-item text-center text-muted small p-4">사용 내역이 없습니다.</li>
+            <li class="list-group-item text-center p-3"><div class="spinner-border spinner-border-sm"></div> 로딩중...</li>
         </ul>
       </div>
       <div class="modal-footer">
@@ -216,9 +223,9 @@ const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let myInfo = null;
 let companyInfo = {}; 
 let currentSalaryData = null;
-let purposeModal;
-let leaveHistoryModal; // 연차 모달
+let purposeModal, leaveHistoryModal;
 
+// 1. 초기화 (안전하게 분리)
 window.onload = async function() {
     purposeModal = new bootstrap.Modal(document.getElementById('certPurposeModal'));
     leaveHistoryModal = new bootstrap.Modal(document.getElementById('leaveHistoryModal'));
@@ -229,18 +236,29 @@ window.onload = async function() {
 
     document.getElementById("salaryMonth").value = new Date().toISOString().slice(0, 7); 
 
-    await Promise.all([ loadProfile(), loadCompanyInfo(), loadNotices() ]);
-    // 연차 계산은 프로필 로드(입사일 등)가 끝난 후 실행
-    calculateLeave();
+    // [중요] 하나가 터져도 나머지는 실행되도록 개별 try-catch나 Promise.allSettled를 쓰거나, 순차 실행하되 에러 무시
+    try { await loadProfile(); } catch(e) { console.error(e); }
+    try { await loadCompanyInfo(); } catch(e) { console.error("회사정보 로딩 실패", e); }
+    try { await loadNotices(); } catch(e) { console.error("공지사항 로딩 실패", e); }
+    try { await calculateLeave(); } catch(e) { console.error("연차 계산 실패", e); }
 };
 
+// 2. 회사 정보 로드 (이사장 찾기 에러 방지)
 async function loadCompanyInfo() {
     const { data } = await _supabase.from('ref_company_info').select('*');
     if(data) data.forEach(item => { companyInfo[item.key] = item.value; });
-    const { data: boss } = await _supabase.from('ref_employees').select('emp_name').eq('position', '이사장').single();
+    
+    // [수정] .maybeSingle() 사용 -> 이사장이 없어도 에러 안 나고 null 반환
+    const { data: boss, error } = await _supabase.from('ref_employees')
+        .select('emp_name')
+        .eq('position', '이사장')
+        .maybeSingle(); 
+    
     if(boss) companyInfo.chairman_name = boss.emp_name; 
+    // 없으면 companyInfo 테이블에 있던 기본값 사용하거나 공란
 }
 
+// 3. 프로필 로드
 async function loadProfile() {
     const { data, error } = await _supabase.from('ref_employees').select('*').eq('emp_id', myInfo.emp_id).single();
     if(error) return;
@@ -287,9 +305,8 @@ async function updateInfo() {
     if(error) alert("수정 실패"); else alert("정보가 수정되었습니다.");
 }
 
-// [연차 통합 계산 - 단순화]
+// 4. 연차 계산 (간소화됨)
 async function calculateLeave() {
-    // 1. 자동 발생 (입사일 기준)
     let generatedLeave = 0;
     if (myInfo.hire_date) {
         const join = new Date(myInfo.hire_date);
@@ -304,7 +321,6 @@ async function calculateLeave() {
         }
     }
 
-    // 2. 관리자 조정 (hr_leave_adj)
     let adjustedLeave = 0;
     try {
         const { data: adjData } = await _supabase.from('hr_leave_adj').select('adj_type, days').eq('emp_id', myInfo.emp_id);
@@ -316,31 +332,29 @@ async function calculateLeave() {
         }
     } catch(e) {}
 
-    // 3. 실제 사용 (결재 완료 건)
     let usedLeave = 0;
     const { data: appData } = await _supabase.from('ref_approval')
         .select('amount')
-        .eq('drafter_id', myInfo.emp_id).eq('doc_type', '휴가').eq('status', '완료'); // or '승인'
+        .eq('drafter_id', myInfo.emp_id).eq('doc_type', '휴가').eq('status', '완료');
     if (appData) {
         appData.forEach(doc => usedLeave += Number(doc.amount));
     }
 
-    // 4. 표시 로직 변경 (사용 가능 / 사용 / 잔여)
-    const totalAvailable = generatedLeave + adjustedLeave; // 사용 가능 (발생+조정)
-    const finalRemain = totalAvailable - usedLeave; // 잔여
-
-    document.getElementById("lvTotal").innerText = totalAvailable; // "사용 가능" 칸
-    document.getElementById("lvUsed").innerText = usedLeave;       // "사용" 칸
-    document.getElementById("lvRemain").innerText = finalRemain;   // "잔여" 칸
+    const totalAvailable = generatedLeave + adjustedLeave;
+    // 당겨쓰기 로직: 만약 잔여가 마이너스면 '당겨쓰기'로 해석? 
+    // 국장님 요청대로: 사용가능(발생+조정) / 사용 / 잔여 이렇게 3개만 표시
+    
+    document.getElementById("lvTotal").innerText = totalAvailable;
+    document.getElementById("lvUsed").innerText = usedLeave;
+    document.getElementById("lvRemain").innerText = totalAvailable - usedLeave;
 }
 
-// [신규 기능] 연차 상세 내역 모달
+// [신규] 연차 상세 모달
 async function showLeaveHistory() {
     const listEl = document.getElementById("leaveHistoryList");
     listEl.innerHTML = '<li class="list-group-item text-center p-3"><div class="spinner-border spinner-border-sm"></div> 로딩중...</li>';
     leaveHistoryModal.show();
 
-    // 결재 완료된 휴가 내역 조회
     const { data: history } = await _supabase.from('ref_approval')
         .select('*')
         .eq('drafter_id', myInfo.emp_id).eq('doc_type', '휴가').eq('status', '완료')
@@ -351,7 +365,6 @@ async function showLeaveHistory() {
         listEl.innerHTML = '<li class="list-group-item text-center text-muted small p-4">사용 내역이 없습니다.</li>';
     } else {
         history.forEach(doc => {
-            // content에서 날짜 추출하거나, 제목 보여주기
             const dateStr = new Date(doc.created_at).toLocaleDateString();
             listEl.innerHTML += `
                 <li class="list-group-item d-flex justify-content-between align-items-center">
@@ -366,14 +379,30 @@ async function showLeaveHistory() {
     }
 }
 
-function openCertModal() { document.getElementById('certPurposeInput').value = ""; purposeModal.show(); }
+// [수정] 재직증명서 용도 드롭다운 처리
+function toggleEtcInput() {
+    const val = document.getElementById("certPurposeSelect").value;
+    const etcInput = document.getElementById("certPurposeEtc");
+    if(val === '기타') etcInput.classList.remove('hidden');
+    else etcInput.classList.add('hidden');
+}
+
+function openCertModal() { 
+    document.getElementById('certPurposeSelect').value = "관공서 제출용";
+    toggleEtcInput();
+    document.getElementById('certPurposeEtc').value = "";
+    purposeModal.show(); 
+}
 
 async function runCertIssue() {
-    const purpose = document.getElementById('certPurposeInput').value;
+    let purpose = document.getElementById('certPurposeSelect').value;
+    if(purpose === '기타') {
+        purpose = document.getElementById('certPurposeEtc').value;
+    }
     if(!purpose) return alert("용도를 입력해주세요.");
+    
     purposeModal.hide();
     
-    // 문서번호 채번
     const thisYear = new Date().getFullYear();
     const { count } = await _supabase.from('log_cert')
         .select('*', { count: 'exact', head: true })
@@ -442,7 +471,6 @@ async function searchSalary() {
     const fmt = (n) => (!n || Number(n)===0) ? "" : Number(n).toLocaleString();
     const fmtFix = (n) => Number(n).toLocaleString();
 
-    // 데이터 바인딩
     document.getElementById("v_p_basic").innerText = fmtFix(data.pay_basic);
     document.getElementById("v_p_meal").innerText = fmtFix(data.pay_meal);
     document.getElementById("v_p_car").innerText = fmtFix(data.pay_car);
@@ -489,29 +517,27 @@ function printSalaryPopup() {
     printDocument(salaryData);
 }
 
-// [핵심] 인쇄 미리보기 (스케일 조정 및 1페이지 강제)
+// [핵심] 인쇄 최적화 (A4 Fit)
 function printDocument(data) {
     const win = window.open('', '', 'width=900,height=1100');
     let contentHtml = "";
 
-    // 공통 CSS: A4 크기 고정 및 90% 축소(scale)로 2장 넘어감 방지
+    // CSS: 스케일을 0.85로 줄여서 확실하게 1장에 들어가게 만듦
+    // overflow: hidden은 빼서 내용이 잘리는 것 방지, 대신 스케일로 해결
     const commonCss = `
         @page { size: A4 portrait; margin: 0; }
         @media print { 
             .no-print { display: none !important; }
-            html, body { width: 210mm; height: 297mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            /* [핵심] 90% 축소로 내용 잘림/넘침 방지 */
-            body { transform: scale(0.9); transform-origin: top left; width: 111%; } 
+            html, body { width: 210mm; height: 100%; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            body { transform: scale(0.85); transform-origin: top center; width: 117%; } /* 0.85배 축소 후 width 보정 */
         }
         body { font-family: "Malgun Gothic", serif; margin: 0; padding: 0; background: #555; }
         .page-wrap { width: 210mm; min-height: 297mm; padding: 15mm; background: white; margin: 20px auto; box-sizing: border-box; position: relative; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        /* 테이블 선 강제 적용 */
         th, td { border: 1px solid #000 !important; }
     `;
 
     if(data.type === 'cert') {
-        // 재직증명서 HTML (테이블 선 !important 적용됨)
         contentHtml = `
         <div style="border: 2px solid #333; padding: 30px; height: 100%; position: relative; box-sizing: border-box;">
             ${data.logo ? `<img src="${data.logo}" style="position:absolute; left:20px; top:20px; height:45px;">` : ''}
@@ -544,7 +570,6 @@ function printDocument(data) {
         </div>`;
     } 
     else if (data.type === 'salary') {
-        // 급여명세서 HTML (제목 마진 추가)
         contentHtml = `
         <div style="padding: 10px; position: relative; height: 100%;">
             ${data.logo ? `<img src="${data.logo}" style="position:absolute; left:0px; top:-10px; height:45px;">` : ''}
