@@ -17,12 +17,13 @@
     .profile-card { padding: 30px; margin-bottom: 20px; display: flex; align-items: center; }
     .profile-icon { width: 70px; height: 70px; background: #e9ecef; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; margin-right: 20px; }
     
-    /* 연차 카드 (3칸) */
+    /* 연차 카드 */
     .leave-card { background: white; border-radius: 12px; padding: 20px 15px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); height: 100%; position: relative; }
     .leave-num { font-size: 1.6rem; font-weight: bold; color: #0d6efd; margin-top: 5px; }
-    /* 상세 버튼 스타일 */
-    .btn-detail { font-size: 0.75rem; position: absolute; top: 10px; right: 10px; text-decoration: none; cursor: pointer; color: #6c757d; }
-    .btn-detail:hover { color: #0d6efd; font-weight: bold; }
+    
+    /* 상세보기 아이콘 버튼 */
+    .btn-detail { font-size: 0.8rem; position: absolute; top: 12px; right: 12px; text-decoration: none; cursor: pointer; color: #adb5bd; transition: 0.2s; }
+    .btn-detail:hover { color: #0d6efd; transform: scale(1.1); }
     
     .nav-tabs .nav-link { color: #495057; cursor: pointer; }
     .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; }
@@ -30,11 +31,14 @@
 
     .salary-blur { filter: blur(6px); transition: filter 0.3s; cursor: pointer; user-select: none; }
     .salary-blur:hover { filter: blur(0); }
-    
     .salary-detail-table th { background-color: #f8f9fa; font-size: 0.9rem; text-align: center; }
     .salary-detail-table td { font-size: 0.95rem; vertical-align: middle; }
     .amount-text { text-align: right; font-family: 'Consolas', monospace; letter-spacing: -0.5px; }
     .total-row { background-color: #e3f2fd; font-weight: bold; }
+    
+    /* 공지사항 리스트 스타일 */
+    .notice-item { cursor: pointer; transition: background 0.2s; }
+    .notice-item:hover { background-color: #f8f9fa; }
   </style>
 </head>
 <body>
@@ -61,13 +65,14 @@
     <div class="col-4">
         <div class="leave-card">
             <div class="text-muted small fw-bold">사용 가능</div>
+            <span class="btn-detail" onclick="showAvailableLeaveDetail()" title="상세보기">🔍</span>
             <div class="leave-num text-dark" id="lvTotal">0</div>
         </div>
     </div>
     <div class="col-4">
         <div class="leave-card">
             <div class="text-muted small fw-bold">사용</div>
-            <span class="btn-detail" onclick="showLeaveHistory()">🔍 상세</span>
+            <span class="btn-detail" onclick="showUsedLeaveDetail()" title="상세보기">🔍</span>
             <div class="leave-num text-danger" id="lvUsed">0</div>
         </div>
     </div>
@@ -196,17 +201,37 @@
   </div>
 </div>
 
-<div class="modal fade" id="leaveHistoryModal" tabindex="-1">
+<div class="modal fade" id="leaveDetailModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header bg-light">
-        <h6 class="modal-title fw-bold">📅 연차 사용 내역</h6>
+        <h6 class="modal-title fw-bold" id="leaveModalTitle">연차 상세</h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body p-0">
-        <ul class="list-group list-group-flush" id="leaveHistoryList">
-            <li class="list-group-item text-center p-3"><div class="spinner-border spinner-border-sm"></div> 로딩중...</li>
-        </ul>
+        <ul class="list-group list-group-flush" id="leaveDetailList"></ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="noticeDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold" id="noticeModalTitle"></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-muted small mb-3">작성일: <span id="noticeModalDate"></span> | 작성자: <span id="noticeModalWriter"></span></div>
+        <div id="noticeModalContent" style="white-space: pre-wrap; line-height: 1.6;"></div>
+        <div id="noticeFileArea" class="mt-4 pt-3 border-top hidden">
+            <span class="badge bg-light text-dark border">📎 첨부파일</span>
+            <a href="#" id="noticeFileLink" target="_blank" class="ms-2 small text-decoration-none">파일 다운로드</a>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
@@ -223,12 +248,13 @@ const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let myInfo = null;
 let companyInfo = {}; 
 let currentSalaryData = null;
-let purposeModal, leaveHistoryModal;
+let noticesData = []; // 공지사항 데이터 저장용
+let leaveDetailModal, noticeDetailModal, purposeModal;
 
-// 1. 초기화 (안전하게 분리)
 window.onload = async function() {
     purposeModal = new bootstrap.Modal(document.getElementById('certPurposeModal'));
-    leaveHistoryModal = new bootstrap.Modal(document.getElementById('leaveHistoryModal'));
+    leaveDetailModal = new bootstrap.Modal(document.getElementById('leaveDetailModal'));
+    noticeDetailModal = new bootstrap.Modal(document.getElementById('noticeDetailModal'));
     
     const stored = localStorage.getItem('erp_user');
     if(!stored) { alert("로그인이 필요합니다."); location.href='index.html'; return; }
@@ -236,29 +262,19 @@ window.onload = async function() {
 
     document.getElementById("salaryMonth").value = new Date().toISOString().slice(0, 7); 
 
-    // [중요] 하나가 터져도 나머지는 실행되도록 개별 try-catch나 Promise.allSettled를 쓰거나, 순차 실행하되 에러 무시
     try { await loadProfile(); } catch(e) { console.error(e); }
-    try { await loadCompanyInfo(); } catch(e) { console.error("회사정보 로딩 실패", e); }
-    try { await loadNotices(); } catch(e) { console.error("공지사항 로딩 실패", e); }
-    try { await calculateLeave(); } catch(e) { console.error("연차 계산 실패", e); }
+    try { await loadCompanyInfo(); } catch(e) { console.error(e); }
+    try { await loadNotices(); } catch(e) { console.error(e); }
+    try { await calculateLeave(); } catch(e) { console.error(e); }
 };
 
-// 2. 회사 정보 로드 (이사장 찾기 에러 방지)
 async function loadCompanyInfo() {
     const { data } = await _supabase.from('ref_company_info').select('*');
     if(data) data.forEach(item => { companyInfo[item.key] = item.value; });
-    
-    // [수정] .maybeSingle() 사용 -> 이사장이 없어도 에러 안 나고 null 반환
-    const { data: boss, error } = await _supabase.from('ref_employees')
-        .select('emp_name')
-        .eq('position', '이사장')
-        .maybeSingle(); 
-    
+    const { data: boss } = await _supabase.from('ref_employees').select('emp_name').eq('position', '이사장').maybeSingle(); 
     if(boss) companyInfo.chairman_name = boss.emp_name; 
-    // 없으면 companyInfo 테이블에 있던 기본값 사용하거나 공란
 }
 
-// 3. 프로필 로드
 async function loadProfile() {
     const { data, error } = await _supabase.from('ref_employees').select('*').eq('emp_id', myInfo.emp_id).single();
     if(error) return;
@@ -305,85 +321,177 @@ async function updateInfo() {
     if(error) alert("수정 실패"); else alert("정보가 수정되었습니다.");
 }
 
-// 4. 연차 계산 (간소화됨)
+// --------------------------------------------------------
+// [공지사항] 로직
+// --------------------------------------------------------
+async function loadNotices() {
+    const el = document.getElementById("noticeList");
+    const { data, error } = await _supabase
+        .from('ref_notice')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+    if (error || !data || data.length === 0) {
+        el.innerHTML = '<div class="text-center p-3 text-muted">등록된 공지사항이 없습니다.</div>';
+        return;
+    }
+
+    noticesData = data; // 상세보기를 위해 데이터 저장
+
+    el.innerHTML = data.map((n, index) => {
+        const dateStr = n.created_at ? n.created_at.slice(0, 10) : "";
+        // 클릭 시 openNoticeDetail(인덱스) 호출
+        return `
+            <div class="list-group-item notice-item" onclick="openNoticeDetail(${index})">
+                <h6 class="fw-bold mb-1">${n.title || "제목 없음"}</h6>
+                <small class="text-muted">${dateStr}</small>
+            </div>
+        `;
+    }).join("");
+}
+
+function openNoticeDetail(index) {
+    const n = noticesData[index];
+    if(!n) return;
+
+    document.getElementById("noticeModalTitle").innerText = n.title;
+    document.getElementById("noticeModalDate").innerText = n.created_at ? n.created_at.slice(0, 10) : "-";
+    document.getElementById("noticeModalWriter").innerText = n.writer || "관리자";
+    document.getElementById("noticeModalContent").innerText = n.content || "";
+    
+    // 파일 첨부 영역 (현재는 데이터가 없으므로 숨김 처리)
+    const fileArea = document.getElementById("noticeFileArea");
+    if(n.file_url) {
+        fileArea.classList.remove('hidden');
+        document.getElementById("noticeFileLink").href = n.file_url;
+    } else {
+        fileArea.classList.add('hidden');
+    }
+
+    noticeDetailModal.show();
+}
+
+// --------------------------------------------------------
+// [연차] 로직
+// --------------------------------------------------------
 async function calculateLeave() {
     let generatedLeave = 0;
+    let generatedDesc = "0일 (입사일 기준 자동 산정)";
+    
     if (myInfo.hire_date) {
         const join = new Date(myInfo.hire_date);
         const now = new Date();
         let diffMonths = (now.getFullYear() - join.getFullYear()) * 12 + (now.getMonth() - join.getMonth());
         if (now.getDate() < join.getDate()) diffMonths--; 
         
-        if (diffMonths < 12) generatedLeave = Math.max(0, diffMonths); 
-        else {
+        if (diffMonths < 12) {
+            generatedLeave = Math.max(0, diffMonths);
+            generatedDesc = `${generatedLeave}일 (1년 미만: 1개월 만근 시 1개)`;
+        } else {
             const years = Math.floor(diffMonths / 12);
             generatedLeave = 15 + Math.floor((years - 1) / 2);
+            generatedDesc = `${generatedLeave}일 (1년 이상: 15개 + 근속가산)`;
         }
     }
 
     let adjustedLeave = 0;
+    let adjHistory = [];
     try {
-        const { data: adjData } = await _supabase.from('hr_leave_adj').select('adj_type, days').eq('emp_id', myInfo.emp_id);
+        const { data: adjData } = await _supabase.from('hr_leave_adj').select('*').eq('emp_id', myInfo.emp_id);
         if (adjData) {
             adjData.forEach(adj => {
-                if(adj.adj_type === '지급') adjustedLeave += Number(adj.days);
-                else adjustedLeave -= Number(adj.days);
+                const d = Number(adj.days);
+                if(adj.adj_type === '지급') { adjustedLeave += d; adjHistory.push({t:'지급', d:d, r:adj.reason}); }
+                else { adjustedLeave -= d; adjHistory.push({t:'차감', d:d, r:adj.reason}); }
             });
         }
     } catch(e) {}
 
     let usedLeave = 0;
+    let usedHistory = [];
     const { data: appData } = await _supabase.from('ref_approval')
-        .select('amount')
-        .eq('drafter_id', myInfo.emp_id).eq('doc_type', '휴가').eq('status', '완료');
+        .select('*')
+        .eq('drafter_id', myInfo.emp_id).eq('doc_type', '휴가').eq('status', '완료')
+        .order('created_at', {ascending: false});
+        
     if (appData) {
-        appData.forEach(doc => usedLeave += Number(doc.amount));
+        appData.forEach(doc => {
+            const d = Number(doc.amount);
+            usedLeave += d;
+            usedHistory.push({t: doc.title, d: d, date: doc.created_at});
+        });
     }
 
     const totalAvailable = generatedLeave + adjustedLeave;
-    // 당겨쓰기 로직: 만약 잔여가 마이너스면 '당겨쓰기'로 해석? 
-    // 국장님 요청대로: 사용가능(발생+조정) / 사용 / 잔여 이렇게 3개만 표시
     
     document.getElementById("lvTotal").innerText = totalAvailable;
     document.getElementById("lvUsed").innerText = usedLeave;
     document.getElementById("lvRemain").innerText = totalAvailable - usedLeave;
+
+    // 상세보기를 위해 데이터 저장
+    myInfo.leaveData = {
+        gen: generatedDesc,
+        adj: adjHistory,
+        used: usedHistory
+    };
 }
 
-// [신규] 연차 상세 모달
-async function showLeaveHistory() {
-    const listEl = document.getElementById("leaveHistoryList");
-    listEl.innerHTML = '<li class="list-group-item text-center p-3"><div class="spinner-border spinner-border-sm"></div> 로딩중...</li>';
-    leaveHistoryModal.show();
-
-    const { data: history } = await _supabase.from('ref_approval')
-        .select('*')
-        .eq('drafter_id', myInfo.emp_id).eq('doc_type', '휴가').eq('status', '완료')
-        .order('created_at', {ascending: false});
-
-    listEl.innerHTML = "";
-    if (!history || history.length === 0) {
-        listEl.innerHTML = '<li class="list-group-item text-center text-muted small p-4">사용 내역이 없습니다.</li>';
+// [연차] 사용 가능 상세
+function showAvailableLeaveDetail() {
+    const list = document.getElementById("leaveDetailList");
+    const d = myInfo.leaveData;
+    document.getElementById("leaveModalTitle").innerText = "사용 가능 연차 상세";
+    
+    let html = `<li class="list-group-item fw-bold bg-light">📌 자동 발생</li>
+                <li class="list-group-item small">${d.gen}</li>
+                <li class="list-group-item fw-bold bg-light mt-2">📌 조정 내역 (관리자)</li>`;
+    
+    if(d.adj.length === 0) {
+        html += `<li class="list-group-item small text-muted">조정 내역 없음</li>`;
     } else {
-        history.forEach(doc => {
-            const dateStr = new Date(doc.created_at).toLocaleDateString();
-            listEl.innerHTML += `
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="fw-bold small">${doc.title}</div>
-                        <div class="text-muted" style="font-size: 0.75rem;">${dateStr}</div>
-                    </div>
-                    <span class="badge bg-danger rounded-pill">-${doc.amount}일</span>
-                </li>
-            `;
+        d.adj.forEach(item => {
+            const badge = item.t === '지급' ? 'bg-success' : 'bg-danger';
+            const sign = item.t === '지급' ? '+' : '-';
+            html += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="small">${item.r || '사유 없음'}</span>
+                        <span class="badge ${badge} rounded-pill">${sign}${item.d}</span>
+                     </li>`;
         });
     }
+    list.innerHTML = html;
+    leaveDetailModal.show();
 }
 
-// [수정] 재직증명서 용도 드롭다운 처리
+// [연차] 사용 내역 상세
+function showUsedLeaveDetail() {
+    const list = document.getElementById("leaveDetailList");
+    const d = myInfo.leaveData.used;
+    document.getElementById("leaveModalTitle").innerText = "연차 사용 내역";
+    
+    if(d.length === 0) {
+        list.innerHTML = `<li class="list-group-item text-center text-muted small p-4">사용 내역이 없습니다.</li>`;
+    } else {
+        list.innerHTML = d.map(item => `
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="fw-bold small">${item.t}</div>
+                    <div class="text-muted" style="font-size: 0.75rem;">${item.date.slice(0,10)}</div>
+                </div>
+                <span class="badge bg-danger rounded-pill">-${item.d}</span>
+            </li>
+        `).join("");
+    }
+    leaveDetailModal.show();
+}
+
+// --------------------------------------------------------
+// [재직증명서] 로직
+// --------------------------------------------------------
 function toggleEtcInput() {
     const val = document.getElementById("certPurposeSelect").value;
     const etcInput = document.getElementById("certPurposeEtc");
-    if(val === '기타') etcInput.classList.remove('hidden');
+    if(val === '기타') { etcInput.classList.remove('hidden'); etcInput.focus(); }
     else etcInput.classList.add('hidden');
 }
 
@@ -396,9 +504,7 @@ function openCertModal() {
 
 async function runCertIssue() {
     let purpose = document.getElementById('certPurposeSelect').value;
-    if(purpose === '기타') {
-        purpose = document.getElementById('certPurposeEtc').value;
-    }
+    if(purpose === '기타') purpose = document.getElementById('certPurposeEtc').value;
     if(!purpose) return alert("용도를 입력해주세요.");
     
     purposeModal.hide();
@@ -437,6 +543,9 @@ async function runCertIssue() {
     printDocument(certData);
 }
 
+// --------------------------------------------------------
+// [급여명세서] 로직
+// --------------------------------------------------------
 function getAttributionString(ymStr) {
     const [y, m] = ymStr.split('-').map(Number);
     let attrYear = y;
@@ -517,24 +626,34 @@ function printSalaryPopup() {
     printDocument(salaryData);
 }
 
-// [핵심] 인쇄 최적화 (A4 Fit)
+// --------------------------------------------------------
+// [인쇄] 통합 함수 (버튼 우측 하단 플로팅 적용)
+// --------------------------------------------------------
 function printDocument(data) {
     const win = window.open('', '', 'width=900,height=1100');
     let contentHtml = "";
 
-    // CSS: 스케일을 0.85로 줄여서 확실하게 1장에 들어가게 만듦
-    // overflow: hidden은 빼서 내용이 잘리는 것 방지, 대신 스케일로 해결
+    // 공통 CSS (플로팅 버튼 스타일 포함)
     const commonCss = `
         @page { size: A4 portrait; margin: 0; }
         @media print { 
             .no-print { display: none !important; }
             html, body { width: 210mm; height: 100%; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            body { transform: scale(0.85); transform-origin: top center; width: 117%; } /* 0.85배 축소 후 width 보정 */
+            /* 축소율 조정 */
+            body { transform: scale(0.9); transform-origin: top center; width: 111%; } 
         }
         body { font-family: "Malgun Gothic", serif; margin: 0; padding: 0; background: #555; }
         .page-wrap { width: 210mm; min-height: 297mm; padding: 15mm; background: white; margin: 20px auto; box-sizing: border-box; position: relative; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th, td { border: 1px solid #000 !important; }
+        
+        /* 플로팅 인쇄 버튼 (우측 하단) */
+        .print-fab {
+            position: fixed; bottom: 30px; right: 30px; 
+            background: #fff; border: 1px solid #ccc; padding: 10px 15px; 
+            border-radius: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            z-index: 9999; display: flex; gap: 10px; align-items: center;
+        }
     `;
 
     if(data.type === 'cert') {
@@ -565,7 +684,6 @@ function printDocument(data) {
                 <span style="font-size:24px; font-weight:bold; position:relative; z-index:1;">${data.compName} 이사장 ${data.chairman}</span>
                 ${data.seal ? `<img src="${data.seal}" style="position:absolute; margin-left:-50px; top:-20px; width:80px; opacity:0.8; z-index:2;">` : ''}
             </div>
-            
             <div style="text-align:center; margin-top: 60px; font-size: 12px; line-height: 1.6; color: #555;">${data.compAddr} ${data.compName}<br>문의: ${data.contact}</div>
         </div>`;
     } 
@@ -573,7 +691,6 @@ function printDocument(data) {
         contentHtml = `
         <div style="padding: 10px; position: relative; height: 100%;">
             ${data.logo ? `<img src="${data.logo}" style="position:absolute; left:0px; top:-10px; height:45px;">` : ''}
-            
             <h1 style="text-align:center; margin-bottom: 30px; font-size: 28px; margin-top: 50px;">${data.titleDate} 급여명세서</h1>
             
             <table style="width:100%; margin-bottom:20px;">
@@ -640,53 +757,16 @@ function printDocument(data) {
     <style>${commonCss}</style>
     </head>
     <body>
-        <div class="print-bar no-print" style="position:fixed; top:0; left:0; width:100%; background:#333; color:white; padding:10px; text-align:center; z-index:9999;">
-            <span>미리보기 화면입니다. 내용 확인 후 인쇄하세요.</span>
-            <button class="btn btn-primary btn-sm ms-2" onclick="window.print()">🖨️ 인쇄하기</button>
-            <button class="btn btn-secondary btn-sm ms-1" onclick="window.close()">닫기</button>
+        <div class="print-fab no-print">
+            <span class="small fw-bold">인쇄 미리보기</span>
+            <button class="btn btn-primary btn-sm rounded-pill" onclick="window.print()">🖨️ 인쇄하기</button>
+            <button class="btn btn-secondary btn-sm rounded-pill" onclick="window.close()">닫기</button>
         </div>
         <div class="page-wrap" style="margin-top: 50px;">${contentHtml}</div>
     </body></html>`;
     
     win.document.write(html);
     win.document.close();
-}
-  // [누락분 추가] 공지사항 로딩 함수
-async function loadNotices() {
-    const el = document.getElementById("noticeList");
-    try {
-        // 1. DB 조회 (최신순 5개)
-        const { data, error } = await _supabase
-            .from('ref_notice')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(5);
-
-        if (error) throw error;
-
-        // 2. 데이터가 없을 때 처리
-        if (!data || data.length === 0) {
-            el.innerHTML = '<div class="text-center p-3 text-muted">등록된 공지사항이 없습니다.</div>';
-            return;
-        }
-
-        // 3. 데이터가 있을 때 목록 생성 (날짜 처리 안전장치 추가)
-        el.innerHTML = data.map(n => {
-            // 날짜가 없으면 빈칸, 있으면 앞 10자리(YYYY-MM-DD)만 자르기
-            const dateStr = n.created_at ? n.created_at.slice(0, 10) : "";
-            return `
-                <div class="list-group-item">
-                    <h6 class="fw-bold mb-1">${n.title || "제목 없음"}</h6>
-                    <small class="text-muted">${dateStr}</small>
-                </div>
-            `;
-        }).join("");
-
-    } catch (e) {
-        console.error("공지사항 로딩 실패:", e);
-        // 에러가 나도 '로딩 중...' 글씨는 지우고 에러 메시지 표시
-        el.innerHTML = '<div class="text-center p-3 text-secondary small">공지사항을 불러올 수 없습니다.</div>';
-    }
 }
 </script>
 </body>
