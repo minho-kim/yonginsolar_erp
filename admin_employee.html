@@ -15,15 +15,17 @@
     .btn-rounded { border-radius: 50px; }
     .table-hover tbody tr { cursor: pointer; transition: background 0.2s; }
     .table-hover tbody tr:hover { background-color: #f8f9fa; transform: scale(1.002); }
-    .status-badge { font-size: 0.75rem; padding: 5px 10px; border-radius: 12px; }
     
-    .tab-content { padding: 20px; background: #fff; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 10px 10px; }
-    .nav-tabs .nav-link { color: #666; cursor: pointer; }
-    .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; }
+    .nav-tabs .nav-link { color: #666; cursor: pointer; border:none; padding: 12px 20px; font-weight: 600; }
+    .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; border-bottom: 3px solid #0d6efd; background: transparent; }
     
-    .modal-content { border-radius: 15px; border: none; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
-    .form-control, .form-select { border-radius: 8px; }
+    .modal-content { border-radius: 16px; border: none; box-shadow: 0 15px 50px rgba(0,0,0,0.1); }
+    .form-control, .form-select { border-radius: 8px; padding: 10px; }
     .d-none { display: none !important; }
+
+    /* 상세정보 디자인 개선 */
+    .section-title { font-size: 0.95rem; font-weight: bold; color: #495057; margin-bottom: 12px; border-left: 4px solid #0d6efd; padding-left: 10px; }
+    .info-card { background: #f8f9fa; padding: 20px; border-radius: 12px; height: 100%; }
   </style>
 </head>
 <body>
@@ -104,49 +106,64 @@
 <div class="modal fade" id="detailModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header bg-white">
+      <div class="modal-header border-0 pb-0">
         <div><h5 class="modal-title fw-bold" id="detailName"></h5><span class="text-muted small" id="detailId"></span></div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body p-0"> 
-        <div class="px-3 pt-3">
-          <ul class="nav nav-tabs" id="empTab" role="tablist">
+      <div class="modal-body"> 
+        <div class="px-2 pt-2">
+          <ul class="nav nav-tabs mb-3" id="empTab" role="tablist">
             <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabInfo">📝 정보 & 계약</a></li>
             <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabSalary">💰 급여 관리</a></li>
             <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabLog">📅 근태/포상</a></li>
           </ul>
         </div>
-        <div class="tab-content">
+        
+        <div class="tab-content pt-2">
           <div class="tab-pane fade show active" id="tabInfo">
             <div class="row g-3">
               <div class="col-md-6">
-                <label class="form-label small fw-bold text-muted">기본 연봉 설정</label>
-                <div class="card p-3 bg-light border-0">
-                  <div class="mb-2"><label class="small text-secondary">연봉 금액 (원)</label><input type="number" id="editSalary" class="form-control" placeholder="숫자만 입력"></div>
-                  <div class="mb-2"><label class="small text-secondary">적용 시작일</label><input type="date" id="salaryApplyDate" class="form-control"></div>
-                  <button class="btn btn-primary btn-sm w-100 mt-2" id="btnSaveInfo" onclick="saveBasicInfo()">연봉 저장</button>
+                <div class="info-card">
+                  <div class="section-title">💰 연봉 계약</div>
+                  <div class="mb-3">
+                    <label class="form-label text-muted small">연봉 총액 (원)</label>
+                    <input type="number" id="editSalary" class="form-control fw-bold" placeholder="숫자만 입력">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label text-muted small">적용 시작일</label>
+                    <input type="date" id="salaryApplyDate" class="form-control">
+                  </div>
+                  <button class="btn btn-primary btn-sm w-100" id="btnSaveInfo" onclick="saveBasicInfo()">연봉 저장</button>
                 </div>
               </div>
-              <div class="col-md-12 mt-3">
-  <label class="form-label small fw-bold text-muted">주민등록번호 관리 (보안)</label>
-  <div class="input-group">
-    <input type="text" id="rrnInput" class="form-control" placeholder="123456-1234567 (하이픈 포함)" maxlength="14">
-    <button class="btn btn-outline-dark" onclick="saveRRN()">🔒 암호화 저장</button>
-  </div>
-  <div class="form-text x-small text-muted">* 저장 시 즉시 암호화되며, 관리자도 복호화 없이는 볼 수 없습니다.</div>
-</div>
+
               <div class="col-md-6">
-                <label class="form-label small fw-bold text-muted">근로계약서 업로드</label>
-                <div id="contractView" class="mb-2"></div>
-                <div class="input-group">
-                    <input type="file" id="contractFile" class="form-control form-control-sm" accept=".pdf,.png,.jpg,.jpeg">
-                    <button class="btn btn-outline-primary btn-sm" onclick="uploadContract()">업로드</button>
+                <div class="info-card">
+                  <div class="section-title">🔒 주민등록번호 (보안)</div>
+                  <div class="d-flex align-items-center gap-2 mb-2">
+                    <input type="text" id="rrnFront" class="form-control text-center" maxlength="6" placeholder="생년월일" style="width: 45%;">
+                    <span class="fw-bold text-muted">-</span>
+                    <input type="password" id="rrnBack" class="form-control text-center" maxlength="7" placeholder="뒤 7자리" style="width: 50%;">
+                  </div>
+                  <button class="btn btn-outline-dark btn-sm w-100" onclick="saveRRN()">🔒 암호화 저장</button>
+                  <div class="mt-2 text-muted" style="font-size: 0.75rem;">* 저장 시 DB에 즉시 암호화됩니다.<br>* 유효성 검사 후 저장됩니다.</div>
                 </div>
-                <div class="form-text x-small text-muted">* PDF 또는 이미지 파일을 선택하세요.</div>
               </div>
-              
-              <div class="col-12 mt-4 pt-3 border-top d-flex justify-content-end gap-2" id="btnResignArea">
+
+              <div class="col-12">
+                <div class="info-card" style="background: white; border: 1px solid #dee2e6;">
+                  <div class="section-title mb-2">📄 근로계약서 관리</div>
+                  <div class="d-flex align-items-center gap-2">
+                    <div class="flex-grow-1">
+                        <input type="file" id="contractFile" class="form-control" accept=".pdf,.jpg,.png,.jpeg">
+                    </div>
+                    <button class="btn btn-dark btn-sm" style="min-width: 80px;" onclick="uploadContract()">업로드</button>
+                  </div>
+                  <div id="contractView" class="mt-2 text-end"></div>
                 </div>
+              </div>
+
+              <div class="col-12 mt-2 pt-2 border-top d-flex justify-content-end gap-2" id="btnResignArea"></div>
             </div>
           </div>
 
@@ -217,12 +234,12 @@ window.onload = async function() {
     await loadSettings();
 };
 
-function showAlert(msg) { document.getElementById("alertBody").innerText = msg; alertModal.show(); }
+function showAlert(msg) { document.getElementById("alertBody").innerHTML = msg; alertModal.show(); }
 function showConfirm(msg, cb) { document.getElementById("confirmBody").innerHTML = msg; confirmCallback = cb; confirmModal.show(); }
 function showLoading() { loadingModal.show(); }
 function hideLoading() { loadingModal.hide(); }
 
-// 1. 직원 목록 불러오기 (3년 경과 로직 포함)
+// 1. 직원 목록 불러오기 (3년 경과 로직 포함 - 기존 기능 100% 복구)
 async function loadList() {
     const tbody = document.getElementById("empListBody");
     tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4">로딩 중...</td></tr>';
@@ -281,7 +298,7 @@ async function loadList() {
     }
 }
 
-// 2. 설정 (요율)
+// 2. 설정 (요율) - 기존 유지
 async function loadSettings() {
     const { data } = await _supabase.from('sys_tax_settings').select('*').eq('id', 1).single();
     if(data) settings = data;
@@ -315,7 +332,7 @@ async function saveSettings() {
     showAlert("설정이 저장되었습니다."); settingsModal.hide(); loadSettings();
 }
 
-// 3. 직원 등록
+// 3. 직원 등록 - 기존 유지
 function openInviteModal() { inviteModal.show(); }
 async function runInvite() {
     const name = document.getElementById("newName").value;
@@ -340,42 +357,37 @@ async function runInvite() {
 }
 
 // 4. 직원 상세
-// [함수] 직원 상세 정보 모달 열기 (보안 스토리지 적용됨)
 async function openDetail(u) {
-    // 1. 전역 변수 설정 (현재 선택된 직원)
     currentEmpId = u.emp_id; 
     currentEmpName = u.emp_name;
 
-    // 2. 기본 정보 UI 세팅
     document.getElementById("detailName").innerText = u.emp_name;
     document.getElementById("detailId").innerText = u.emp_id;
     document.getElementById("editSalary").value = u.base_salary || 0;
     document.getElementById("salaryApplyDate").valueAsDate = new Date(); 
-    
-    // 삭제 시 파일 경로 참조를 위해 hidden input에 저장
     document.getElementById("hiddenContractUrl").value = u.contract_url || ""; 
     
-    // 3. [보안 핵심] 계약서 보기 로직 (Signed URL 생성)
+    // [개선] 주민번호 입력칸 초기화 (보안)
+    document.getElementById("rrnFront").value = "";
+    document.getElementById("rrnBack").value = "";
+
+    // 계약서 보기 로직
     const viewDiv = document.getElementById("contractView");
-    viewDiv.innerHTML = '<span class="spinner-border spinner-border-sm text-secondary"></span> 로딩 중...'; // 로딩 표시
+    viewDiv.innerHTML = '<span class="spinner-border spinner-border-sm text-secondary"></span> 로딩 중...';
 
     if (u.contract_url) {
-        // (A) 예전 방식(http로 시작)인지, (B) 새 보안 방식(파일경로)인지 확인
         if (u.contract_url.startsWith('http')) {
-            // 구버전 데이터 (버킷이 Private이면 안 열릴 수 있음)
-            viewDiv.innerHTML = `<span class="text-danger small">⚠️ 이전 보안 설정 파일입니다. 다시 업로드해주세요.</span>`;
+            viewDiv.innerHTML = `<span class="badge bg-warning text-dark">구버전 파일</span>`;
         } else {
-            // 신버전 데이터 -> 슈퍼베이스에 '임시 접근 권한' 요청
             try {
                 const { data, error } = await _supabase.storage
                     .from('contracts')
-                    .createSignedUrl(u.contract_url, 3600); // 3600초(1시간) 동안 유효
+                    .createSignedUrl(u.contract_url, 3600);
 
                 if (error || !data) {
-                    console.error("Link Error:", error);
                     viewDiv.innerHTML = `<span class="text-danger small">파일 로드 실패</span>`;
                 } else {
-                    viewDiv.innerHTML = `<a href="${data.signedUrl}" target="_blank" class="btn btn-sm btn-info w-100 text-white">📄 계약서 보기 (보안)</a>`;
+                    viewDiv.innerHTML = `<a href="${data.signedUrl}" target="_blank" class="btn btn-sm btn-info w-100 text-white fw-bold">📄 계약서 보기 (보안)</a>`;
                 }
             } catch (e) {
                 viewDiv.innerHTML = `<span class="text-danger small">오류 발생</span>`;
@@ -385,15 +397,13 @@ async function openDetail(u) {
         viewDiv.innerHTML = `<span class="text-muted small">미등록 상태</span>`;
     }
 
-    // 4. 퇴사자/재직자 UI 분기 처리
     const area = document.getElementById("btnResignArea");
     const btnSave = document.getElementById("btnSaveInfo");
 
     if (u.resign_date) {
-        // [퇴사자 모드] : 수정 불가, 삭제/취소 가능
         document.getElementById("editSalary").disabled = true;
         document.getElementById("salaryApplyDate").disabled = true;
-        document.getElementById("contractFile").disabled = true; // 업로드 막기
+        document.getElementById("contractFile").disabled = true;
         if(btnSave) btnSave.classList.add("d-none");
         
         area.innerHTML = `
@@ -402,7 +412,6 @@ async function openDetail(u) {
             <button class="btn btn-sm btn-danger ms-2" onclick="reqDeletePermanent()">🗑️ 완전 삭제</button>
         `;
     } else {
-        // [재직자 모드] : 수정 가능, 퇴사처리 가능
         document.getElementById("editSalary").disabled = false;
         document.getElementById("salaryApplyDate").disabled = false;
         document.getElementById("contractFile").disabled = false;
@@ -410,7 +419,6 @@ async function openDetail(u) {
 
         area.innerHTML = `<button class="btn btn-sm btn-outline-danger" onclick="doResign()">⛔ 퇴사 처리</button>`;
         
-        // 재직자만 급여/휴가 탭 데이터 로드
         loadSalaryData(); 
         loadLeave(); 
     }
@@ -418,9 +426,37 @@ async function openDetail(u) {
     detailModal.show();
 }
 
-// [핵심] 파일 업로드 함수 (Supabase Storage)
-// [수정] 모달 겹침 방지 + DB 저장 로직 강화// [수정] 기존 파일 삭제 후 업로드 (용량 절약)
-// [수정] 알림창을 모달로 변경 + 로딩창 겹침 버그 해결
+// [개선] 주민번호 저장 (유효성 검사 + 분리 입력)
+async function saveRRN() {
+    const f = document.getElementById("rrnFront").value;
+    const b = document.getElementById("rrnBack").value;
+    const full = f + b;
+
+    if (full.length !== 13) return showAlert("주민번호 13자리를 모두 입력해주세요.");
+
+    // Luhn 알고리즘 (유효성 검사)
+    let sum = 0;
+    const multipliers = [2,3,4,5,6,7,8,9,2,3,4,5];
+    for(let i=0; i<12; i++) sum += Number(full[i]) * multipliers[i];
+    const checkDigit = (11 - (sum % 11)) % 10;
+    
+    if (Number(full[12]) !== checkDigit) {
+        return showAlert("유효하지 않은 주민등록번호입니다.<br>다시 확인해주세요.");
+    }
+
+    // RPC 호출
+    const finalRRN = f + "-" + b;
+    const { error } = await _supabase.rpc('update_employee_rrn', { p_emp_id: currentEmpId, p_rrn: finalRRN });
+    
+    if(error) showAlert("저장 실패: " + error.message);
+    else {
+        showAlert("주민번호가 안전하게 암호화되어 저장되었습니다.");
+        document.getElementById("rrnFront").value = "";
+        document.getElementById("rrnBack").value = "";
+    }
+}
+
+// [개선] 파일 업로드 (모달 겹침 해결)
 async function uploadContract() {
     const fileInput = document.getElementById("contractFile");
     if (fileInput.files.length === 0) return showAlert("파일을 선택해주세요.");
@@ -429,89 +465,61 @@ async function uploadContract() {
     const fileExt = file.name.split('.').pop();
     const fileName = `${currentEmpId}_contract_${Date.now()}.${fileExt}`;
     
-    showLoading(); // 로딩 시작
+    showLoading(); 
 
     try {
-        // 1. 기존 파일 삭제 (중복 방지)
-        const { data: emp } = await _supabase
-            .from('ref_employees')
-            .select('contract_url')
-            .eq('emp_id', currentEmpId)
-            .single();
-
+        // 기존 파일 삭제
+        const { data: emp } = await _supabase.from('ref_employees').select('contract_url').eq('emp_id', currentEmpId).single();
         if (emp && emp.contract_url && !emp.contract_url.startsWith('http')) {
             await _supabase.storage.from('contracts').remove([emp.contract_url]);
         }
 
-        // 2. 파일 업로드
-        const { data, error } = await _supabase.storage
-            .from('contracts')
-            .upload(fileName, file, { upsert: true });
-
+        // 업로드
+        const { data, error } = await _supabase.storage.from('contracts').upload(fileName, file, { upsert: true });
         if (error) throw new Error("스토리지 업로드 실패: " + error.message);
 
         const filePath = data.path; 
 
-        // 3. DB 업데이트
-        const { error: dbError } = await _supabase
-            .from('ref_employees')
-            .update({ contract_url: filePath }) 
-            .eq('emp_id', currentEmpId);
-
+        const { error: dbError } = await _supabase.from('ref_employees').update({ contract_url: filePath }).eq('emp_id', currentEmpId);
         if (dbError) throw new Error("DB 저장 실패: " + dbError.message);
 
-        // 4. [핵심] 로딩창 끄기
         hideLoading();
 
-        // 5. [핵심] 0.5초 뒤에 성공 모달 띄우기 (로딩창이 완전히 사라질 시간 확보)
+        // 모달 겹침 방지 딜레이
         setTimeout(async () => {
-            // alert() 대신 예쁜 모달(showAlert) 사용
             showAlert("계약서가 등록되었습니다."); 
             
-            // UI 갱신 (버튼 만들기)
-            const { data: signedData } = await _supabase.storage
-                .from('contracts')
-                .createSignedUrl(filePath, 3600);
-
+            const { data: signedData } = await _supabase.storage.from('contracts').createSignedUrl(filePath, 3600);
             if (signedData) {
                 document.getElementById("contractView").innerHTML = 
-                    `<a href="${signedData.signedUrl}" target="_blank" class="btn btn-sm btn-info w-100 text-white">📄 계약서 보기 (보안)</a>`;
+                    `<a href="${signedData.signedUrl}" target="_blank" class="btn btn-sm btn-info w-100 text-white fw-bold">📄 계약서 보기 (보안)</a>`;
                 document.getElementById("hiddenContractUrl").value = filePath;
                 fileInput.value = "";
             }
-            loadList(); // 목록 갱신
-        }, 500); // 0.5초 딜레이
+            loadList();
+        }, 500);
 
     } catch (err) {
         hideLoading();
-        // 에러 메시지도 0.5초 뒤에 모달로 표시
         setTimeout(() => showAlert("오류 발생: " + err.message), 500);
-        console.error(err);
     }
 }
 
-// [핵심] 완전 삭제 (파일 + DB)
+// 완전 삭제
 async function reqDeletePermanent() {
     showConfirm("⚠️ 영구 삭제 경고", `<strong>${currentEmpName}</strong> 님의 데이터와 계약서 파일을<br>모두 삭제하시겠습니까? (복구 불가)`, async function() {
         showLoading();
         detailModal.hide();
         
-        // 1. 파일 삭제
         const filePath = document.getElementById("hiddenContractUrl").value;
-        if (filePath && !filePath.startsWith('http')) { // 경로가 있을 때만
-            const { error: storageError } = await _supabase.storage
-                .from('contracts')
-                .remove([filePath]);
-            
-            if (storageError) console.error("스토리지 삭제 실패:", storageError);
+        if (filePath && !filePath.startsWith('http')) {
+            await _supabase.storage.from('contracts').remove([filePath]);
         }
 
-        // 2. DB 삭제 (기존 동일)
         await _supabase.from('hr_salary').delete().eq('emp_id', currentEmpId);
         await _supabase.from('hr_leave_adj').delete().eq('emp_id', currentEmpId);
         await _supabase.from('hr_salary_contracts').delete().eq('emp_id', currentEmpId);
         await _supabase.from('log_cert').delete().eq('emp_id', currentEmpId);
-        
         const { error } = await _supabase.from('ref_employees').delete().eq('emp_id', currentEmpId);
 
         hideLoading();
@@ -544,7 +552,7 @@ async function cancelResign() {
     });
 }
 
-// 급여 데이터 로드 및 계산
+// 급여 데이터 로드
 async function loadSalaryData() {
     const month = document.getElementById("salaryMonth").value;
     const badge = document.getElementById("salaryStatusBadge");
@@ -628,35 +636,13 @@ async function saveLog() {
     showAlert("반영되었습니다."); document.getElementById("logValue").value = ""; document.getElementById("logReason").value = ""; loadLeave();
 }
 
-// 관리자용 증명서 발급
 function openAdminCertModal() {
     document.getElementById("adminCertPurpose").value = "";
     adminCertModal.show();
 }
-async function reqIssueCert() { // PDF 생성 로직 (jsPDF 활용 예시) -> 실제론 마이페이지 로직과 유사하게 인쇄창 띄우거나 PDF 라이브러리 사용
+async function reqIssueCert() { 
     showAlert("현재 인쇄 미리보기 기능을 준비 중입니다. (마이페이지 기능을 활용하세요)");
-    // 실제 구현 시: printDocument(data) 함수 등을 재활용하여 인쇄창 띄우면 됩니다.
     adminCertModal.hide();
-}
-  // [추가] 주민번호 암호화 저장 함수
-async function saveRRN() {
-    const rrn = document.getElementById("rrnInput").value;
-    // 유효성 검사 (간단)
-    if (!rrn || rrn.length < 13) return showAlert("올바른 주민번호를 입력하세요.");
-
-    // DB의 보안 함수(RPC) 호출
-    const { error } = await _supabase.rpc('update_employee_rrn', {
-        p_emp_id: currentEmpId,
-        p_rrn: rrn
-    });
-
-    if (error) {
-        console.error(error);
-        showAlert("저장 실패: " + error.message);
-    } else {
-        showAlert("주민번호가 안전하게 암호화되어 저장되었습니다.");
-        document.getElementById("rrnInput").value = ""; // 보안을 위해 입력칸 비우기
-    }
 }
 </script>
 
