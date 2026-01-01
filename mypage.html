@@ -17,7 +17,6 @@
     .profile-card { padding: 30px; margin-bottom: 20px; display: flex; align-items: center; }
     .profile-icon { width: 70px; height: 70px; background: #e9ecef; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; margin-right: 20px; }
     
-    /* 연차 카드 */
     .leave-card { background: white; border-radius: 12px; padding: 20px 15px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); height: 100%; position: relative; }
     .leave-num { font-size: 1.6rem; font-weight: bold; color: #0d6efd; margin-top: 5px; }
     .btn-detail { font-size: 0.8rem; position: absolute; top: 12px; right: 12px; text-decoration: none; cursor: pointer; color: #adb5bd; transition: 0.2s; }
@@ -265,11 +264,14 @@ window.onload = async function() {
     try { await calculateLeave(); } catch(e) { console.error(e); }
 };
 
+// [수정됨] 회계관리 설정(ref_company_info)에서 대표자 이름 불러오기
 async function loadCompanyInfo() {
     const { data } = await _supabase.from('ref_company_info').select('*');
-    if(data) data.forEach(item => { companyInfo[item.key] = item.value; });
-    const { data: boss } = await _supabase.from('ref_employees').select('emp_name').eq('position', '이사장').maybeSingle(); 
-    if(boss) companyInfo.chairman_name = boss.emp_name; 
+    if(data) {
+        data.forEach(item => { companyInfo[item.key] = item.value; });
+    }
+    // ceoName이 있으면 쓰고, 없으면 기본값 '이사장'
+    companyInfo.chairman_name = companyInfo.ceoName || "이사장"; 
 }
 
 async function loadProfile() {
@@ -588,17 +590,13 @@ function printSalaryPopup() {
         d_pen: fmt(d.ded_pension), d_hlt: fmt(d.ded_health), d_care: fmt(d.ded_care), d_emp: fmt(d.ded_employ),
         d_inc: fmt(d.ded_income), d_loc: fmt(d.ded_local), d_adv: fmt(d.ded_advance), d_cap: fmt(d.ded_capital),
         d_total: fmtFix(d.ded_total), net: fmtFix(d.net_pay),
-        logo: companyInfo.logo_horizontal_url || "", seal: companyInfo.seal_url, chairman: companyInfo.company_name ? companyInfo.chairman_name : companyInfo.chairman_name
+        logo: companyInfo.logo_horizontal_url || "", seal: companyInfo.seal_url, chairman: companyInfo.chairman_name
     };
     printDocument(salaryData);
 }
 
 /* ============================
-   ✅ 인쇄 통합 함수 (수정본)
-   - A4(mm) 고정
-   - zoom은 내부에만 적용
-   - 급여/증명서 스케일 분리
-   - 2페이지(빈 페이지) 방지: height 고정 + overflow hidden
+   ✅ 인쇄 통합 함수
    ============================ */
 function printDocument(data) {
     const win = window.open('', '', 'width=900,height=1100');
@@ -679,7 +677,7 @@ function printDocument(data) {
             <div style="text-align:center; margin-top: 30px; font-size: 18px;">${data.today}</div>
             
             <div style="text-align:center; margin-top:50px; position:relative;">
-                <span style="font-size:24px; font-weight:bold; position:relative; z-index:1;">${data.compName} 이사장 ${data.chairman}</span>
+                <span style="font-size:24px; font-weight:bold; position:relative; z-index:1;">${data.compName} 대표자 ${data.chairman}</span>
                 ${data.seal ? `<img src="${data.seal}" style="position:absolute; margin-left:-50px; top:-20px; width:80px; opacity:0.8; z-index:2;">` : ''}
             </div>
             <div style="text-align:center; margin-top: 60px; font-size: 12px; line-height: 1.6; color: #555;">${data.compAddr} ${data.compName}<br>문의: ${data.contact}</div>
@@ -739,7 +737,7 @@ function printDocument(data) {
                 </div>
             </div>
             <div style="margin-top:50px; text-align:center; position:relative;">
-                <span style="font-size:18px; font-weight:bold; position:relative; z-index:1;">용인모두의햇빛협동조합 이사장 ${data.chairman}</span>
+                <span style="font-size:18px; font-weight:bold; position:relative; z-index:1;">${data.compName} 대표자 ${data.chairman}</span>
                 ${data.seal ? `<img src="${data.seal}" style="position:absolute; margin-left:-50px; top:-20px; width:80px; opacity:0.8; z-index:2;">` : ''}
             </div>
         </div>`;
@@ -759,7 +757,6 @@ function printDocument(data) {
             <button class="btn btn-secondary btn-sm rounded-pill" onclick="window.close()">닫기</button>
         </div>
 
-        <!-- ✅ inline margin-top 제거 + 타입별 클래스 부여 -->
         <div class="page-wrap ${pageClass}">
             <div class="print-content">${contentHtml}</div>
         </div>
