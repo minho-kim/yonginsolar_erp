@@ -638,6 +638,26 @@ async function reqIssueCert() { // PDF 생성 로직 (jsPDF 활용 예시) -> �
     // 실제 구현 시: printDocument(data) 함수 등을 재활용하여 인쇄창 띄우면 됩니다.
     adminCertModal.hide();
 }
+  // [추가] 주민번호 암호화 저장 함수
+async function saveRRN() {
+    const rrn = document.getElementById("rrnInput").value;
+    // 유효성 검사 (간단)
+    if (!rrn || rrn.length < 13) return showAlert("올바른 주민번호를 입력하세요.");
+
+    // DB의 보안 함수(RPC) 호출
+    const { error } = await _supabase.rpc('update_employee_rrn', {
+        p_emp_id: currentEmpId,
+        p_rrn: rrn
+    });
+
+    if (error) {
+        console.error(error);
+        showAlert("저장 실패: " + error.message);
+    } else {
+        showAlert("주민번호가 안전하게 암호화되어 저장되었습니다.");
+        document.getElementById("rrnInput").value = ""; // 보안을 위해 입력칸 비우기
+    }
+}
 </script>
 
 <input type="hidden" id="hiddenContractUrl">
