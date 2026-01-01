@@ -20,8 +20,6 @@
     /* 연차 카드 */
     .leave-card { background: white; border-radius: 12px; padding: 20px 15px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); height: 100%; position: relative; }
     .leave-num { font-size: 1.6rem; font-weight: bold; color: #0d6efd; margin-top: 5px; }
-    
-    /* 상세보기 아이콘 버튼 */
     .btn-detail { font-size: 0.8rem; position: absolute; top: 12px; right: 12px; text-decoration: none; cursor: pointer; color: #adb5bd; transition: 0.2s; }
     .btn-detail:hover { color: #0d6efd; transform: scale(1.1); }
     
@@ -36,7 +34,6 @@
     .amount-text { text-align: right; font-family: 'Consolas', monospace; letter-spacing: -0.5px; }
     .total-row { background-color: #e3f2fd; font-weight: bold; }
     
-    /* 공지사항 리스트 스타일 */
     .notice-item { cursor: pointer; transition: background 0.2s; }
     .notice-item:hover { background-color: #f8f9fa; }
   </style>
@@ -248,7 +245,7 @@ const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let myInfo = null;
 let companyInfo = {}; 
 let currentSalaryData = null;
-let noticesData = []; // 공지사항 데이터 저장용
+let noticesData = [];
 let leaveDetailModal, noticeDetailModal, purposeModal;
 
 window.onload = async function() {
@@ -321,9 +318,7 @@ async function updateInfo() {
     if(error) alert("수정 실패"); else alert("정보가 수정되었습니다.");
 }
 
-// --------------------------------------------------------
-// [공지사항] 로직
-// --------------------------------------------------------
+// 공지사항
 async function loadNotices() {
     const el = document.getElementById("noticeList");
     const { data, error } = await _supabase
@@ -336,12 +331,9 @@ async function loadNotices() {
         el.innerHTML = '<div class="text-center p-3 text-muted">등록된 공지사항이 없습니다.</div>';
         return;
     }
-
-    noticesData = data; // 상세보기를 위해 데이터 저장
-
+    noticesData = data; 
     el.innerHTML = data.map((n, index) => {
         const dateStr = n.created_at ? n.created_at.slice(0, 10) : "";
-        // 클릭 시 openNoticeDetail(인덱스) 호출
         return `
             <div class="list-group-item notice-item" onclick="openNoticeDetail(${index})">
                 <h6 class="fw-bold mb-1">${n.title || "제목 없음"}</h6>
@@ -354,13 +346,11 @@ async function loadNotices() {
 function openNoticeDetail(index) {
     const n = noticesData[index];
     if(!n) return;
-
     document.getElementById("noticeModalTitle").innerText = n.title;
     document.getElementById("noticeModalDate").innerText = n.created_at ? n.created_at.slice(0, 10) : "-";
     document.getElementById("noticeModalWriter").innerText = n.writer || "관리자";
     document.getElementById("noticeModalContent").innerText = n.content || "";
     
-    // 파일 첨부 영역 (현재는 데이터가 없으므로 숨김 처리)
     const fileArea = document.getElementById("noticeFileArea");
     if(n.file_url) {
         fileArea.classList.remove('hidden');
@@ -368,30 +358,26 @@ function openNoticeDetail(index) {
     } else {
         fileArea.classList.add('hidden');
     }
-
     noticeDetailModal.show();
 }
 
-// --------------------------------------------------------
-// [연차] 로직
-// --------------------------------------------------------
+// 연차
 async function calculateLeave() {
     let generatedLeave = 0;
-    let generatedDesc = "0일 (입사일 기준 자동 산정)";
+    let generatedDesc = "0일 (입사일 기준)";
     
     if (myInfo.hire_date) {
         const join = new Date(myInfo.hire_date);
         const now = new Date();
         let diffMonths = (now.getFullYear() - join.getFullYear()) * 12 + (now.getMonth() - join.getMonth());
         if (now.getDate() < join.getDate()) diffMonths--; 
-        
         if (diffMonths < 12) {
             generatedLeave = Math.max(0, diffMonths);
-            generatedDesc = `${generatedLeave}일 (1년 미만: 1개월 만근 시 1개)`;
+            generatedDesc = `${generatedLeave}일 (1년 미만 월 만근)`;
         } else {
             const years = Math.floor(diffMonths / 12);
             generatedLeave = 15 + Math.floor((years - 1) / 2);
-            generatedDesc = `${generatedLeave}일 (1년 이상: 15개 + 근속가산)`;
+            generatedDesc = `${generatedLeave}일 (1년 이상 근속)`;
         }
     }
 
@@ -424,20 +410,13 @@ async function calculateLeave() {
     }
 
     const totalAvailable = generatedLeave + adjustedLeave;
-    
     document.getElementById("lvTotal").innerText = totalAvailable;
     document.getElementById("lvUsed").innerText = usedLeave;
     document.getElementById("lvRemain").innerText = totalAvailable - usedLeave;
 
-    // 상세보기를 위해 데이터 저장
-    myInfo.leaveData = {
-        gen: generatedDesc,
-        adj: adjHistory,
-        used: usedHistory
-    };
+    myInfo.leaveData = { gen: generatedDesc, adj: adjHistory, used: usedHistory };
 }
 
-// [연차] 사용 가능 상세
 function showAvailableLeaveDetail() {
     const list = document.getElementById("leaveDetailList");
     const d = myInfo.leaveData;
@@ -446,7 +425,6 @@ function showAvailableLeaveDetail() {
     let html = `<li class="list-group-item fw-bold bg-light">📌 자동 발생</li>
                 <li class="list-group-item small">${d.gen}</li>
                 <li class="list-group-item fw-bold bg-light mt-2">📌 조정 내역 (관리자)</li>`;
-    
     if(d.adj.length === 0) {
         html += `<li class="list-group-item small text-muted">조정 내역 없음</li>`;
     } else {
@@ -463,12 +441,10 @@ function showAvailableLeaveDetail() {
     leaveDetailModal.show();
 }
 
-// [연차] 사용 내역 상세
 function showUsedLeaveDetail() {
     const list = document.getElementById("leaveDetailList");
     const d = myInfo.leaveData.used;
     document.getElementById("leaveModalTitle").innerText = "연차 사용 내역";
-    
     if(d.length === 0) {
         list.innerHTML = `<li class="list-group-item text-center text-muted small p-4">사용 내역이 없습니다.</li>`;
     } else {
@@ -485,9 +461,7 @@ function showUsedLeaveDetail() {
     leaveDetailModal.show();
 }
 
-// --------------------------------------------------------
-// [재직증명서] 로직
-// --------------------------------------------------------
+// 재직증명서
 function toggleEtcInput() {
     const val = document.getElementById("certPurposeSelect").value;
     const etcInput = document.getElementById("certPurposeEtc");
@@ -506,7 +480,6 @@ async function runCertIssue() {
     let purpose = document.getElementById('certPurposeSelect').value;
     if(purpose === '기타') purpose = document.getElementById('certPurposeEtc').value;
     if(!purpose) return alert("용도를 입력해주세요.");
-    
     purposeModal.hide();
     
     const thisYear = new Date().getFullYear();
@@ -543,9 +516,7 @@ async function runCertIssue() {
     printDocument(certData);
 }
 
-// --------------------------------------------------------
-// [급여명세서] 로직
-// --------------------------------------------------------
+// 급여명세서
 function getAttributionString(ymStr) {
     const [y, m] = ymStr.split('-').map(Number);
     let attrYear = y;
@@ -626,39 +597,38 @@ function printSalaryPopup() {
     printDocument(salaryData);
 }
 
-// --------------------------------------------------------
-// [인쇄] 통합 함수 (버튼 우측 하단 플로팅 적용)
-// --------------------------------------------------------
+// 인쇄 통합 함수
 function printDocument(data) {
     const win = window.open('', '', 'width=900,height=1100');
     let contentHtml = "";
 
-    // 공통 CSS (플로팅 버튼 스타일 포함)
+    // [핵심] 인쇄 최적화: Zoom 사용 & 배경색 문제 해결
     const commonCss = `
         @page { size: A4 portrait; margin: 0; }
         @media print { 
             .no-print { display: none !important; }
-            html, body { width: 210mm; height: 100%; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            /* 축소율 조정 */
-            body { transform: scale(0.9); transform-origin: top center; width: 111%; } 
+            html, body { width: 100%; height: 100%; margin: 0; padding: 0; background: #fff !important; zoom: 0.93; }
+            .page-wrap { margin: 0 !important; box-shadow: none !important; border: none !important; width: 100%; }
         }
         body { font-family: "Malgun Gothic", serif; margin: 0; padding: 0; background: #555; }
         .page-wrap { width: 210mm; min-height: 297mm; padding: 15mm; background: white; margin: 20px auto; box-sizing: border-box; position: relative; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th, td { border: 1px solid #000 !important; }
         
-        /* 플로팅 인쇄 버튼 (우측 하단) */
+        /* 플로팅 인쇄 버튼 */
         .print-fab {
             position: fixed; bottom: 30px; right: 30px; 
             background: #fff; border: 1px solid #ccc; padding: 10px 15px; 
             border-radius: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             z-index: 9999; display: flex; gap: 10px; align-items: center;
         }
+        /* 재직증명서 테이블 여백 */
+        .cert-container td { padding: 10px 15px !important; }
     `;
 
     if(data.type === 'cert') {
         contentHtml = `
-        <div style="border: 2px solid #333; padding: 30px; height: 100%; position: relative; box-sizing: border-box;">
+        <div class="cert-container" style="border: 2px solid #333; padding: 30px; height: 100%; position: relative; box-sizing: border-box;">
             ${data.logo ? `<img src="${data.logo}" style="position:absolute; left:20px; top:20px; height:45px;">` : ''}
             <div style="text-align:right; font-size:12px; margin-top:30px; margin-bottom:5px;">www.yonginsolar.kr</div>
             <h2 style="text-align:center; font-size: 32px; text-decoration: underline; margin: 60px 0 40px 0; font-weight: bold;">재 직 증 명 서</h2>
@@ -666,15 +636,15 @@ function printDocument(data) {
             
             <div style="text-align:left; font-weight: bold; font-size: 16px; margin-top: 10px; margin-bottom: 5px;">1. 인적사항</div>
             <table style="width:100%;">
-                <tr><th style="background:#f9f9f9; padding:10px;">성 명</th><td style="padding:10px;">${data.name}</td><th style="background:#f9f9f9;">  생년월일</th><td style="padding:10px;">${data.birth}</td></tr>
-                <tr><th style="background:#f9f9f9; padding:10px;">소 속</th><td style="padding:10px;">${data.dept}</td><th style="background:#f9f9f9;">  직 위</th><td style="padding:10px;">${data.pos}</td></tr>
-                <tr><th style="background:#f9f9f9; padding:10px;">주 소</th><td colspan="3" style="padding:10px;">${data.address}</td></tr>
+                <tr><th style="background:#f9f9f9; padding:10px;">성 명</th><td>${data.name}</td><th style="background:#f9f9f9;">생년월일</th><td>${data.birth}</td></tr>
+                <tr><th style="background:#f9f9f9; padding:10px;">소 속</th><td>${data.dept}</td><th style="background:#f9f9f9;">직 위</th><td>${data.pos}</td></tr>
+                <tr><th style="background:#f9f9f9; padding:10px;">주 소</th><td colspan="3">${data.address}</td></tr>
             </table>
 
             <div style="text-align:left; font-weight: bold; font-size: 16px; margin-top: 20px; margin-bottom: 5px;">2. 재직사항</div>
             <table style="width:100%;">
-                <tr><th style="background:#f9f9f9; padding:10px; width:110px;">재직기간</th><td colspan="3" style="padding:10px;">${data.tenure}</td></tr>
-                <tr><th style="background:#f9f9f9; padding:10px;">용 도</th><td colspan="3" style="padding:10px;">${data.purpose}</td></tr>
+                <tr><th style="background:#f9f9f9; padding:10px; width:110px;">재직기간</th><td colspan="3">${data.tenure}</td></tr>
+                <tr><th style="background:#f9f9f9; padding:10px;">용 도</th><td colspan="3">${data.purpose}</td></tr>
             </table>
 
             <div style="text-align:center; margin-top: 50px; font-size: 18px;">위와 같이 재직하고 있음을 증명합니다.</div>
@@ -692,7 +662,6 @@ function printDocument(data) {
         <div style="padding: 10px; position: relative; height: 100%;">
             ${data.logo ? `<img src="${data.logo}" style="position:absolute; left:0px; top:-10px; height:45px;">` : ''}
             <h1 style="text-align:center; margin-bottom: 30px; font-size: 28px; margin-top: 50px;">${data.titleDate} 급여명세서</h1>
-            
             <table style="width:100%; margin-bottom:20px;">
                 <tr>
                     <th style="background:#f5f5f5; padding:8px; width:18%;">귀속연월</th><td style="padding:8px; width:32%;">${data.attrDate}</td>
@@ -703,7 +672,6 @@ function printDocument(data) {
                     <th style="background:#f5f5f5; padding:8px;">소속/직급</th><td style="padding:8px;">${data.dept} / ${data.pos}</td>
                 </tr>
             </table>
-
             <div style="display:flex; gap:20px; border-top:2px solid #888; padding-top:10px;">
                 <div style="flex:1;">
                     <div style="text-align:center; font-weight:bold; padding:5px; border-bottom:2px solid #0d47a1; color:#0d47a1; margin-bottom:5px;">지급내역</div>
@@ -732,7 +700,6 @@ function printDocument(data) {
                     </table>
                 </div>
             </div>
-
             <div style="display:flex; margin-top:40px; border-top:2px solid #888; padding-top:20px; align-items:center;">
                 <div style="flex:1; font-size:14px; color:#555; padding-left:20px;">귀하의 노고에 진심으로 감사드립니다.</div>
                 <div style="width:300px;">
@@ -743,7 +710,6 @@ function printDocument(data) {
                     </table>
                 </div>
             </div>
-
             <div style="margin-top:50px; text-align:center; position:relative;">
                 <span style="font-size:18px; font-weight:bold; position:relative; z-index:1;">용인모두의햇빛협동조합 이사장 ${data.chairman}</span>
                 ${data.seal ? `<img src="${data.seal}" style="position:absolute; margin-left:-50px; top:-20px; width:80px; opacity:0.8; z-index:2;">` : ''}
