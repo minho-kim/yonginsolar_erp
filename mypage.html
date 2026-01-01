@@ -431,58 +431,81 @@ function openNoticeDetail(index) {
     noticeDetailModal.show();
 }
 
+// [수정] 관리자 페이지와 로직 통일 (연차 실시간 계산)
 async function calculateLeave() {
-    let generatedLeave = 0;
+    // 1. 자동 발생분 계산 (입사일 기준)
+    let generated = 0;
     let generatedDesc = "0일 (입사일 기준)";
-    
+
     if (myInfo.hire_date) {
         const join = new Date(myInfo.hire_date);
         const now = new Date();
-        let diffMonths = (now.getFullYear() - join.getFullYear()) * 12 + (now.getMonth() - join.getMonth());
-        if (now.getDate() < join.getDate()) diffMonths--; 
-        if (diffMonths < 12) {
-            generatedLeave = Math.max(0, diffMonths);
-            generatedDesc = `${generatedLeave}일 (1년 미만 월 만근)`;
+        
+        // 연차 계산 로직 (관리자와 동일하게 맞춤)
+        const diffYears = now.getFullYear() - join.getFullYear();
+        const diffMonths = (now.getFullYear() - join.getFullYear()) * 12 + (now.getMonth() - join.getMonth());
+        
+        // (단순화된 로직: 1년 미만은 개월수, 1년 이상은 15개)
+        if (diffYears < 1) {
+            generated = Math.max(0, (now.getDate() < join.getDate() ? diffMonths - 1 : diffMonths));
+            generatedDesc = `${generated}일 (1년 미만 월 단위)`;
         } else {
-            const years = Math.floor(diffMonths / 12);
-            generatedLeave = 15 + Math.floor((years - 1) / 2);
-            generatedDesc = `${generatedLeave}일 (1년 이상 근속)`;
+            generated = 15; // 1년 이상은 15개로 통일 (근속 가산은 추후 로직 고도화 필요)
+            generatedDesc = `15일 (1년 이상 기본)`;
         }
     }
 
-    let adjustedLeave = 0;
-    let adjHistory = [];
-    try {
-        const { data: adjData } = await _supabase.from('hr_leave_adj').select('*').eq('emp_id', myInfo.emp_id);
-        if (adjData) {
-            adjData.forEach(adj => {
-                const d = Number(adj.days);
-                if(adj.adj_type === '지급') { adjustedLeave += d; adjHistory.push({t:'지급', d:d, r:adj.reason}); }
-                else { adjustedLeave -= d; adjHistory.push({t:'차감', d:d, r:adj.reason}); }
-            });
-        }
-    } catch(e) {}
-
-    let usedLeave = 0;
-    let usedHistory = [];
-    const { data: appData } = await _supabase.from('ref_approval')
+    // 2. 관리자 조정 내역 가져오기 (hr_leave_adj 테이블)
+    let adjusted = 0;
+    let adjHistory = []; // 상세 내역 보여주기용
+    
+    const { data: adjData } = await _supabase
+        .from('hr_leave_adj')
         .select('*')
-        .eq('drafter_id', myInfo.emp_id).eq('doc_type', '휴가').eq('status', '완료')
-        .order('created_at', {ascending: false});
-        
-    if (appData) {
-        appData.forEach(doc => {
-            const d = Number(doc.amount);
-            usedLeave += d;
-            usedHistory.push({t: doc.title, d: d, date: doc.created_at});
+        .eq('emp_id', myInfo.emp_id); // 내 사번으로 조회
+
+    if (adjData) {
+        adjData.forEach(adj => {
+            const d = Number(adj.days);
+            // '지급' 또는 '포상'이면 더하고, 나머지는 뺌
+            if (adj.adj_type === '지급' || adj.adj_type === '포상') { 
+                adjusted += d; 
+                adjHistory.push({ t: '지급/포상', d: d, r: adj.reason });
+            } else { 
+                adjusted -= d; 
+                adjHistory.push({ t: '차감/징계', d: d, r: adj.reason });
+            }
         });
     }
 
-    const totalAvailable = generatedLeave + adjustedLeave;
-    document.getElementById("lvTotal").innerText = totalAvailable;
-    document.getElementById("lvUsed").innerText = usedLeave;
-    document.getElementById("lvRemain").innerText = totalAvailable - usedLeave;
+    // 3. 사용 내역 가져오기 (ref_approval 테이블 - 결재 완료된 휴가)
+    let used = 0;
+    let usedHistory = [];
 
+    const { data: appData } = await _supabase
+        .from('ref_approval')
+        .select('*')
+        .eq('drafter_id', myInfo.emp_id)
+        .eq('doc_type', '휴가')
+        .eq('status', '완료'); // 결재 완료된 건만
+
+    if (appData) {
+        appData.forEach(doc => {
+            const d = Number(doc.amount);
+            used += d;
+            usedHistory.push({ t: doc.title, d: d, date: doc.created_at });
+        });
+    }
+
+    // 4. 최종 계산 및 화면 표시
+    const totalAvailable = generated + adjusted; // 발생 + 조정 = 총 사용가능
+    const finalRemain = totalAvailable - used;   // 총 사용가능 - 사용 = 잔여
+
+    document.getElementById("lvTotal").innerText = totalAvailable; // 사용 가능
+    document.getElementById("lvUsed").innerText = used;            // 사용함
+    document.getElementById("lvRemain").innerText = finalRemain;   // 잔여 (이게 16으로 나와야 함)
+
+    // 상세보기를 위해 데이터 저장
     myInfo.leaveData = { gen: generatedDesc, adj: adjHistory, used: usedHistory };
 }
 
