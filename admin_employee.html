@@ -127,6 +127,14 @@
                   <button class="btn btn-primary btn-sm w-100 mt-2" id="btnSaveInfo" onclick="saveBasicInfo()">연봉 저장</button>
                 </div>
               </div>
+              <div class="col-md-12 mt-3">
+  <label class="form-label small fw-bold text-muted">주민등록번호 관리 (보안)</label>
+  <div class="input-group">
+    <input type="text" id="rrnInput" class="form-control" placeholder="123456-1234567 (하이픈 포함)" maxlength="14">
+    <button class="btn btn-outline-dark" onclick="saveRRN()">🔒 암호화 저장</button>
+  </div>
+  <div class="form-text x-small text-muted">* 저장 시 즉시 암호화되며, 관리자도 복호화 없이는 볼 수 없습니다.</div>
+</div>
               <div class="col-md-6">
                 <label class="form-label small fw-bold text-muted">근로계약서 업로드</label>
                 <div id="contractView" class="mb-2"></div>
