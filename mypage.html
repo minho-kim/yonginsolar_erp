@@ -318,7 +318,6 @@ async function updateInfo() {
     if(error) alert("수정 실패"); else alert("정보가 수정되었습니다.");
 }
 
-// 공지사항
 async function loadNotices() {
     const el = document.getElementById("noticeList");
     const { data, error } = await _supabase
@@ -361,7 +360,6 @@ function openNoticeDetail(index) {
     noticeDetailModal.show();
 }
 
-// 연차
 async function calculateLeave() {
     let generatedLeave = 0;
     let generatedDesc = "0일 (입사일 기준)";
@@ -461,7 +459,6 @@ function showUsedLeaveDetail() {
     leaveDetailModal.show();
 }
 
-// 재직증명서
 function toggleEtcInput() {
     const val = document.getElementById("certPurposeSelect").value;
     const etcInput = document.getElementById("certPurposeEtc");
@@ -516,7 +513,6 @@ async function runCertIssue() {
     printDocument(certData);
 }
 
-// 급여명세서
 function getAttributionString(ymStr) {
     const [y, m] = ymStr.split('-').map(Number);
     let attrYear = y;
@@ -597,33 +593,40 @@ function printSalaryPopup() {
     printDocument(salaryData);
 }
 
-// 인쇄 통합 함수
+// [핵심] 인쇄 최적화 (Zoom 0.86, Background Fix, Page Fit)
 function printDocument(data) {
     const win = window.open('', '', 'width=900,height=1100');
     let contentHtml = "";
 
-    // [핵심] 인쇄 최적화: Zoom 사용 & 배경색 문제 해결
     const commonCss = `
         @page { size: A4 portrait; margin: 0; }
         @media print { 
+            /* 회색 배경 방지 및 여백 제거 */
+            html, body { height: auto; background: #fff !important; overflow: visible; }
+            /* Zoom을 내용물에만 적용 */
+            .page-wrap {
+                zoom: 0.86; 
+                margin: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+                width: 100%;
+                height: auto;
+            }
             .no-print { display: none !important; }
-            html, body { width: 100%; height: 100%; margin: 0; padding: 0; background: #fff !important; zoom: 0.93; }
-            .page-wrap { margin: 0 !important; box-shadow: none !important; border: none !important; width: 100%; }
         }
+        /* 화면 스타일 */
         body { font-family: "Malgun Gothic", serif; margin: 0; padding: 0; background: #555; }
         .page-wrap { width: 210mm; min-height: 297mm; padding: 15mm; background: white; margin: 20px auto; box-sizing: border-box; position: relative; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th, td { border: 1px solid #000 !important; }
         
-        /* 플로팅 인쇄 버튼 */
+        /* 플로팅 버튼 */
         .print-fab {
             position: fixed; bottom: 30px; right: 30px; 
             background: #fff; border: 1px solid #ccc; padding: 10px 15px; 
             border-radius: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             z-index: 9999; display: flex; gap: 10px; align-items: center;
         }
-        /* 재직증명서 테이블 여백 */
-        .cert-container td { padding: 10px 15px !important; }
     `;
 
     if(data.type === 'cert') {
@@ -636,15 +639,15 @@ function printDocument(data) {
             
             <div style="text-align:left; font-weight: bold; font-size: 16px; margin-top: 10px; margin-bottom: 5px;">1. 인적사항</div>
             <table style="width:100%;">
-                <tr><th style="background:#f9f9f9; padding:10px;">성 명</th><td>${data.name}</td><th style="background:#f9f9f9;">생년월일</th><td>${data.birth}</td></tr>
-                <tr><th style="background:#f9f9f9; padding:10px;">소 속</th><td>${data.dept}</td><th style="background:#f9f9f9;">직 위</th><td>${data.pos}</td></tr>
-                <tr><th style="background:#f9f9f9; padding:10px;">주 소</th><td colspan="3">${data.address}</td></tr>
+                <tr><th style="background:#f9f9f9; padding:6px 10px; width:120px;">성 명</th><td style="padding:6px 10px;">${data.name}</td><th style="background:#f9f9f9; padding:6px 10px; width:120px;">생년월일</th><td style="padding:6px 10px;">${data.birth}</td></tr>
+                <tr><th style="background:#f9f9f9; padding:6px 10px;">소 속</th><td style="padding:6px 10px;">${data.dept}</td><th style="background:#f9f9f9; padding:6px 10px;">직 위</th><td style="padding:6px 10px;">${data.pos}</td></tr>
+                <tr><th style="background:#f9f9f9; padding:6px 10px;">주 소</th><td colspan="3" style="padding:6px 10px;">${data.address}</td></tr>
             </table>
 
             <div style="text-align:left; font-weight: bold; font-size: 16px; margin-top: 20px; margin-bottom: 5px;">2. 재직사항</div>
             <table style="width:100%;">
-                <tr><th style="background:#f9f9f9; padding:10px; width:110px;">재직기간</th><td colspan="3">${data.tenure}</td></tr>
-                <tr><th style="background:#f9f9f9; padding:10px;">용 도</th><td colspan="3">${data.purpose}</td></tr>
+                <tr><th style="background:#f9f9f9; padding:6px 10px; width:120px;">재직기간</th><td colspan="3" style="padding:6px 10px;">${data.tenure}</td></tr>
+                <tr><th style="background:#f9f9f9; padding:6px 10px;">용 도</th><td colspan="3" style="padding:6px 10px;">${data.purpose}</td></tr>
             </table>
 
             <div style="text-align:center; margin-top: 50px; font-size: 18px;">위와 같이 재직하고 있음을 증명합니다.</div>
