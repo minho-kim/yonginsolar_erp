@@ -164,20 +164,20 @@
                <div><h6 class="fw-bold mb-1">💼 급여 대장 연동</h6><small class="text-muted">HR_Salary → 회계 전표</small></div>
                <div class="d-flex align-items-center gap-2">
                    <input type="month" id="salaryMonth" class="form-control form-control-sm" style="width: 130px;">
-                   <button class="btn btn-info btn-sm text-white" onclick="syncSalary()">실행</button>
+                   <button class="btn btn-info btn-sm text-white" onclick="confirmSync('salary')">실행</button>
                </div>
              </div>
           </div>
           <div class="card p-3 border-start border-5 border-warning bg-light">
              <div class="d-flex justify-content-between align-items-center">
                <div><h6 class="fw-bold mb-1">📝 전자결재 연동</h6><small class="text-muted">완료된 지출결의서 불러오기</small></div>
-               <button class="btn btn-warning btn-sm text-white" onclick="syncApprovals()">실행</button>
+               <button class="btn btn-warning btn-sm text-white" onclick="confirmSync('approval')">실행</button>
              </div>
           </div>
           <div class="card p-3 border-start border-5 border-danger bg-light">
              <div class="d-flex justify-content-between align-items-center">
                <div><h6 class="fw-bold mb-1">📅 연말결산</h6><small class="text-muted">손익계정 마감 (준비중)</small></div>
-               <button class="btn btn-danger btn-sm" onclick="alert('준비중')">실행</button>
+               <button class="btn btn-danger btn-sm" onclick="showAlert('알림', '준비중인 기능입니다.')">실행</button>
              </div>
           </div>
       </div>
@@ -193,6 +193,35 @@
   </div>
 </div>
 
+<div class="modal fade" id="alertModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-bold" id="alertTitle">알림</h6>
+      </div>
+      <div class="modal-body text-center py-4" id="alertBody">내용</div>
+      <div class="modal-footer border-0 pt-0 justify-content-center">
+        <button type="button" class="btn btn-primary btn-sm w-50" data-bs-dismiss="modal">확인</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="confirmModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-bold" id="confirmTitle">확인</h6>
+      </div>
+      <div class="modal-body text-center py-4" id="confirmBody">진행하시겠습니까?</div>
+      <div class="modal-footer border-0 pt-0 justify-content-center gap-2">
+        <button type="button" class="btn btn-secondary btn-sm w-40" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-danger btn-sm w-40" id="btnConfirmYes">확인</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal fade" id="selectModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><div class="modal-header p-3 bg-light"><h6 class="m-0 fw-bold">계정과목 검색</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
 <div class="modal-body p-0">
     <div class="p-2 border-bottom bg-white sticky-top">
@@ -204,9 +233,9 @@
 <div class="modal fade" id="addModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">항목 추가</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
 <div class="modal-body">
     <label class="small text-muted mb-1">구분</label>
-    <select class="form-select mb-3" id="addTypeSelect" disabled> <option value="매출">매출</option><option value="비용">비용</option><option value="자산">자산</option>
+    <select class="form-select mb-3" id="addTypeSelect" disabled>
+        <option value="매출">매출</option><option value="비용">비용</option><option value="자산">자산</option>
     </select>
-    
     <label class="small text-muted mb-1">중분류</label>
     <select class="form-select mb-2" id="addCategorySelect"></select>
     <div class="form-check mb-3">
@@ -214,22 +243,15 @@
         <label class="form-check-label small" for="chkManualCat">직접 입력</label>
     </div>
     <input type="text" class="form-control mb-3 hidden" id="manualCatInput" placeholder="새 중분류명 입력">
-    
     <label class="small text-muted mb-1">사용처</label>
     <select class="form-select mb-3" id="addUsageSelect">
-        <option value="전체">전체</option>
-        <option value="본사">본사</option>
-        <option value="1호기">1호기</option>
-        <option value="2호기">2호기</option>
+        <option value="전체">전체</option><option value="본사">본사</option><option value="1호기">1호기</option><option value="2호기">2호기</option>
     </select>
-
     <label class="small text-muted mb-1">새 항목명</label>
     <input type="text" class="form-control mb-3" id="addNewItemName" placeholder="예: 야근식대">
-
     <div class="form-check p-2 border rounded bg-light">
         <input class="form-check-input ms-0 me-2" type="checkbox" id="addTaxFreeCheck">
-        <label class="form-check-label fw-bold" for="addTaxFreeCheck">면세 항목 (Tax Free)</label>
-        <div class="text-muted small ms-4">체크 시 부가세 계산에서 제외됩니다.</div>
+        <label class="form-check-label fw-bold" for="addTaxFreeCheck">면세 항목</label>
     </div>
 </div>
 <div class="modal-footer"><button class="btn btn-primary w-100" onclick="confAdd()">추가하기</button></div></div></div></div>
@@ -244,14 +266,23 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let mData=[], cardData=[]; 
-let selectModal, reportModal, addModal, infoModal;
+let selectModal, reportModal, addModal, infoModal, alertModal, confirmModal;
 let myInfo = null;
+let confirmCallback = null; // 확인 모달 콜백 저장용
 
 window.onload = async function() {
     selectModal = new bootstrap.Modal(document.getElementById('selectModal'));
     reportModal = new bootstrap.Modal(document.getElementById('reportModal'));
     addModal = new bootstrap.Modal(document.getElementById('addModal'));
     infoModal = new bootstrap.Modal(document.getElementById('infoModal'));
+    alertModal = new bootstrap.Modal(document.getElementById('alertModal'));
+    confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+
+    // 확인 모달의 [확인] 버튼 이벤트 바인딩
+    document.getElementById("btnConfirmYes").onclick = function() {
+        if(confirmCallback) confirmCallback();
+        confirmModal.hide();
+    };
 
     const stored = localStorage.getItem('erp_user');
     if(stored) myInfo = JSON.parse(stored);
@@ -261,6 +292,19 @@ window.onload = async function() {
 
     await Promise.all([ loadMasterData(), loadCards(), refreshDashboard() ]);
 };
+
+// [Helper] 모달 호출 함수
+function showAlert(title, msg) {
+    document.getElementById("alertTitle").innerText = title;
+    document.getElementById("alertBody").innerHTML = msg;
+    alertModal.show();
+}
+function showConfirm(title, msg, callback) {
+    document.getElementById("confirmTitle").innerText = title;
+    document.getElementById("confirmBody").innerHTML = msg;
+    confirmCallback = callback; // 콜백 저장
+    confirmModal.show();
+}
 
 // 1. 기초 데이터 로드
 async function loadMasterData() {
@@ -309,8 +353,9 @@ async function refreshDashboard() {
 async function handleFormSubmit(e) {
     e.preventDefault();
     const item = document.getElementById("hiddenItem").value;
-    if(!item) return alert("계정과목을 선택하세요.");
+    if(!item) return showAlert("입력 오류", "계정과목을 선택하세요.");
     
+    // UI에서 값 가져오기... (이전과 동일)
     const fDate = document.getElementById("dateField").value;
     const project = document.getElementById("projectSelect").value;
     const type = document.querySelector('input[name="inputType"]:checked').value;
@@ -342,6 +387,7 @@ async function handleFormSubmit(e) {
     let entries = [];
     const writer = myInfo ? myInfo.emp_name : "WebUser";
 
+    // 분개 로직 (이전과 동일)
     if (settleMode === 'pre_expense') {
         entries.push({ Date: fDate, Type: type, Account: item, Description: finalDesc, Debit: netAmount, Credit: 0, Project: project, Operator: writer });
         if(vatAmount > 0) entries.push({ Date: fDate, Type: '자산', Account: '부가세대급금', Description: `[${item}] 부가세`, Debit: vatAmount, Credit: 0, Project: project, Operator: writer });
@@ -360,16 +406,16 @@ async function handleFormSubmit(e) {
             entries.push({ Date: fDate, Type: '비용', Account: item, Description: finalDesc, Debit: netAmount, Credit: 0, Project: project, Operator: writer });
             if(vatAmount > 0) entries.push({ Date: fDate, Type: '자산', Account: '부가세대급금', Description: `[${item}] 부가세`, Debit: vatAmount, Credit: 0, Project: project, Operator: writer });
             entries.push({ Date: fDate, Type: creditType, Account: creditAcc, Description: finalDesc, Debit: 0, Credit: totalAmt, Project: project, Operator: writer });
-        } else { // 자산 등
+        } else {
             entries.push({ Date: fDate, Type: type, Account: item, Description: finalDesc, Debit: totalAmt, Credit: 0, Project: project, Operator: writer });
             entries.push({ Date: fDate, Type: '자산', Account: '보통예금', Description: finalDesc, Debit: 0, Credit: totalAmt, Project: project, Operator: writer });
         }
     }
 
     const { error } = await _supabase.from('ac_journal').insert(entries);
-    if(error) alert("저장 실패: " + error.message);
+    if(error) showAlert("오류", "저장 실패: " + error.message);
     else {
-        alert("저장되었습니다.");
+        showAlert("완료", "저장되었습니다.");
         document.getElementById("erpForm").reset();
         document.getElementById("smNorm").checked = true;
         toggleSettleMode();
@@ -407,8 +453,6 @@ function filterAccounts() {
     filtered.forEach(acc => {
         const d = document.createElement("div");
         d.className = "list-group-item list-group-item-action p-2 ps-3 border-0 border-bottom search-list-item";
-        
-        // [디자인] 항목명 + (중분류) + 면세뱃지
         d.innerHTML = `
             <div class="d-flex justify-content-between align-items-center">
                 <div>
@@ -418,30 +462,21 @@ function filterAccounts() {
                 ${(acc.Tax_Free == 'TRUE' || acc.Tax_Free === true) ? '<span class="badge bg-secondary" style="font-size:0.7em;">면세</span>' : ''}
             </div>
         `;
-        
         d.onclick = () => {
             document.getElementById("displayAccount").value = acc.Item;
             document.getElementById("hiddenItem").value = acc.Item;
             document.getElementById("hiddenStandard").value = acc.Standard;
-            
             const isTaxFree = (acc.Tax_Free == 'TRUE' || acc.Tax_Free === true);
             document.getElementById("isTaxFree").value = isTaxFree; 
-            
             const vat = document.getElementById("vatCheck");
-            if(isTaxFree) { 
-                vat.checked = false; 
-                vat.disabled = true; 
-            } else { 
-                vat.disabled = false; 
-                vat.checked = true; 
-            }
+            if(isTaxFree) { vat.checked = false; vat.disabled = true; } else { vat.disabled = false; vat.checked = true; }
             selectModal.hide();
         };
         list.appendChild(d);
     });
 }
 
-// 5. 모달: 항목 추가 (Usage, Tax_Free 추가)
+// 5. 모달: 항목 추가
 function openAddModal() {
     const type = document.querySelector('input[name="inputType"]:checked').value;
     document.getElementById("addTypeSelect").value = type;
@@ -465,22 +500,14 @@ async function confAdd() {
     const name = document.getElementById("addNewItemName").value;
     let cat = document.getElementById("addCategorySelect").value;
     if(document.getElementById("chkManualCat").checked) cat = document.getElementById("manualCatInput").value;
-    
-    // [신규] 사용처 및 면세여부
     const usage = document.getElementById("addUsageSelect").value;
     const isTaxFree = document.getElementById("addTaxFreeCheck").checked ? "TRUE" : "FALSE";
 
-    if(!name || !cat) return alert("내용을 입력하세요");
+    if(!name || !cat) return showAlert("알림", "내용을 입력하세요");
     
-    // ac_master에 Insert (Type, Standard, Item, Usage, Tax_Free)
-    await _supabase.from('ac_master').insert({
-        Type: type, 
-        Standard: cat, 
-        Item: name, 
-        Usage: usage,
-        Tax_Free: isTaxFree
-    });
-    alert("추가되었습니다."); addModal.hide(); loadMasterData();
+    await _supabase.from('ac_master').insert({Type:type, Standard:cat, Item:name, Usage:usage, Tax_Free:isTaxFree});
+    showAlert("성공", "추가되었습니다.");
+    addModal.hide(); loadMasterData();
 }
 
 // 6. 결산 보고서
@@ -571,7 +598,7 @@ function realPrint() {
     setTimeout(() => { w.focus(); w.print(); w.close(); }, 500);
 }
 
-// 기타 기능들
+// 기타 기능 (모달 적용)
 async function loadHistory() {
     const el = document.getElementById("historyList");
     el.innerHTML = "로딩 중...";
@@ -582,7 +609,12 @@ async function loadHistory() {
         el.innerHTML += `<div class="list-group-item d-flex justify-content-between"><div><span class="badge bg-secondary me-1">${item.Type}</span><b>${item.Account}</b> <small>${item.Description}</small></div><div class="fw-bold">${amt.toLocaleString()} <span class="text-danger cursor-pointer" onclick="deleteTx('${item.id}')">×</span></div></div>`;
     });
 }
-async function deleteTx(id) { if(confirm("삭제?")) { await _supabase.from('ac_journal').delete().eq('id', id); loadHistory(); refreshDashboard(); }}
+async function deleteTx(id) {
+    showConfirm("삭제 확인", "정말 이 내역을 삭제하시겠습니까?", async function() {
+        await _supabase.from('ac_journal').delete().eq('id', id);
+        loadHistory(); refreshDashboard();
+    });
+}
 function toggleCard() { document.getElementById("cardSelect").classList.toggle("hidden", !document.getElementById("payMethod").checked); }
 function toggleSettleMode() {
     const mode = document.querySelector('input[name="settleMode"]:checked').value;
@@ -601,27 +633,33 @@ async function openInfoModal() {
 async function saveInfo() {
     const updates = [{ key: 'orgName', value: document.getElementById("orgName").value }, { key: 'estDate', value: document.getElementById("estDate").value }];
     await _supabase.from('ref_company_info').upsert(updates);
-    alert("저장됨"); infoModal.hide();
+    showAlert("성공", "설정이 저장되었습니다."); infoModal.hide();
 }
-async function syncSalary() {
-    const ym = document.getElementById("salaryMonth").value;
-    if(!confirm(ym+"월 급여 연동?")) return;
-    const { data: salaries } = await _supabase.from('hr_salary').select('*').eq('year_month', ym);
-    if(!salaries || !salaries.length) return alert("데이터 없음");
-    let total=0; salaries.forEach(s=>total+=Number(s.pay_total));
-    await _supabase.from('ac_journal').insert([{Date:`${ym}-25`, Type:'비용', Account:'급여', Description:`${ym}월 급여`, Debit:total, Credit:0, Project:'본사', Operator:'System'}, {Date:`${ym}-25`, Type:'자산', Account:'보통예금', Description:`${ym}월 급여 지급`, Debit:0, Credit:total, Project:'본사', Operator:'System'}]);
-    alert("완료"); refreshDashboard();
-}
-async function syncApprovals() {
-    const { data: approvals } = await _supabase.from('ac_approval').select('*').eq('status', '완료').like('doc_type', '%지출%');
-    if(!approvals || !approvals.length) return alert("승인된 건이 없습니다.");
-    if(!confirm(`총 ${approvals.length}건 연동?`)) return;
-    let count = 0; const today = new Date().toISOString().slice(0,10);
-    for (const doc of approvals) {
-        const { error } = await _supabase.from('ac_journal').insert([{Date:today, Type:'비용', Account:'미분류비용', Description:`[전자결재] ${doc.title}`, Debit:doc.amount, Credit:0, Project:'본사', Operator:doc.drafter_name}, {Date:today, Type:'부채', Account:'미지급금', Description:`[전자결재] ${doc.title}`, Debit:0, Credit:doc.amount, Project:'본사', Operator:doc.drafter_name}]);
-        if(!error) count++;
+
+// 연동 기능 (Confirm 모달 적용)
+function confirmSync(type) {
+    if(type === 'salary') {
+        const ym = document.getElementById("salaryMonth").value;
+        if(!ym) return showAlert("알림", "년-월을 선택하세요.");
+        showConfirm("급여 연동", `${ym}월 급여 내역을 회계 전표로 가져오시겠습니까?`, async () => {
+            const { data: salaries } = await _supabase.from('hr_salary').select('*').eq('year_month', ym);
+            if(!salaries || !salaries.length) return showAlert("오류", "해당 월의 급여 데이터가 없습니다.");
+            let total=0; salaries.forEach(s=>total+=Number(s.pay_total));
+            await _supabase.from('ac_journal').insert([{Date:`${ym}-25`, Type:'비용', Account:'급여', Description:`${ym}월 급여 (${salaries.length}명)`, Debit:total, Credit:0, Project:'본사', Operator:'System'}, {Date:`${ym}-25`, Type:'자산', Account:'보통예금', Description:`${ym}월 급여 이체`, Debit:0, Credit:total, Project:'본사', Operator:'System'}]);
+            showAlert("성공", "연동이 완료되었습니다."); refreshDashboard();
+        });
+    } else if (type === 'approval') {
+        showConfirm("전자결재 연동", "완료된 지출결의서를 전표로 불러오시겠습니까?", async () => {
+            const { data: approvals } = await _supabase.from('ac_approval').select('*').eq('status', '완료').like('doc_type', '%지출%');
+            if(!approvals || !approvals.length) return showAlert("알림", "불러올 결재 건이 없습니다.");
+            let count = 0; const today = new Date().toISOString().slice(0,10);
+            for (const doc of approvals) {
+                const { error } = await _supabase.from('ac_journal').insert([{Date:today, Type:'비용', Account:'미분류비용', Description:`[전자결재] ${doc.title}`, Debit:doc.amount, Credit:0, Project:'본사', Operator:doc.drafter_name}, {Date:today, Type:'부채', Account:'미지급금', Description:`[전자결재] ${doc.title}`, Debit:0, Credit:doc.amount, Project:'본사', Operator:doc.drafter_name}]);
+                if(!error) count++;
+            }
+            showAlert("완료", `${count}건의 결재 내역이 연동되었습니다.`); refreshDashboard(); loadHistory();
+        });
     }
-    alert(`${count}건 완료`); refreshDashboard(); loadHistory();
 }
 </script>
 </body>
