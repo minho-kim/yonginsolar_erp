@@ -24,7 +24,7 @@
     .btn-report { width: 100%; margin-bottom: 20px; font-weight: bold; border-radius: 10px; }
     .readonly-input { background-color: #f8f9fa; cursor: pointer; }
     
-    /* 리포트 및 테이블 스타일 */
+    /* 리포트 스타일 */
     #reportContent { font-family: "Malgun Gothic", serif; font-size: 13px; }
     .tbl { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
     .tbl th, .tbl td { border: 1px solid #ddd; padding: 6px; }
@@ -177,12 +177,16 @@ const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let mData=[], cardData=[]; 
 let selectModal, reportModal, addModal, infoModal;
+let myInfo = null;
 
 window.onload = async function() {
     selectModal = new bootstrap.Modal(document.getElementById('selectModal'));
     reportModal = new bootstrap.Modal(document.getElementById('reportModal'));
     addModal = new bootstrap.Modal(document.getElementById('addModal'));
     infoModal = new bootstrap.Modal(document.getElementById('infoModal'));
+
+    const stored = localStorage.getItem('erp_user');
+    if(stored) myInfo = JSON.parse(stored);
 
     document.getElementById('dateField').valueAsDate = new Date();
     document.getElementById('salaryMonth').value = new Date().toISOString().slice(0, 7);
@@ -195,40 +199,40 @@ window.onload = async function() {
 
 // 1. 기초 데이터 (ac_master, ref_cards)
 async function loadMasterData() {
-    // [수정] ac_master 사용
-    const { data } = await _supabase.from('ac_master').select('*').order('type').order('category').order('name');
+    // [수정] 필드명: Type, Standard, Item, Tax_Free, SpecialType
+    const { data } = await _supabase.from('ac_master').select('*').order('Type').order('Standard').order('Item');
     if(data) mData = data;
 }
 async function loadCards() {
-    // [수정] ref_cards 사용
+    // [수정] 필드명: card_alias
     const { data } = await _supabase.from('ref_cards').select('*');
     if(data) {
         cardData = data;
         const sel = document.getElementById("cardSelect");
         sel.innerHTML = "<option value=''>선택</option>";
-        cardData.forEach(c => sel.add(new Option(c.card_name, c.card_name))); 
+        cardData.forEach(c => sel.add(new Option(c.card_alias, c.card_alias))); 
     }
 }
 
-// 2. 대시보드 (ac_journal)
+// 2. 대시보드 (ac_journal: Debit/Credit 구조 반영)
 async function refreshDashboard() {
-    // [수정] ac_journal 사용
     const { data } = await _supabase.from('ac_journal').select('*');
-    let rev=0, exp=0, ast=0, vat=0;
+    let rev=0, exp=0, ast=0;
     
     if(data) {
         data.forEach(r => {
-            const amt = Number(r.amount);
-            const tax = Number(r.vat);
-            if(r.type === '매출') { rev += amt; vat += tax; }
-            else if(r.type === '비용') { exp += amt; vat -= tax; }
-            else if(r.type === '자산') { ast += amt; }
+            const amt = Number(r.Debit || 0) + Number(r.Credit || 0); // 금액 (단순 합산)
+            if(r.Type === '매출') rev += amt;
+            else if(r.Type === '비용') exp += amt;
+            else if(r.Type === '자산') ast += amt;
         });
     }
     document.getElementById("valRev").innerText = rev.toLocaleString();
     document.getElementById("valExp").innerText = exp.toLocaleString();
     document.getElementById("valAst").innerText = ast.toLocaleString();
-    document.getElementById("valVat").innerText = vat.toLocaleString();
+    
+    // 부가세 추정 (간이)
+    document.getElementById("valVat").innerText = Math.round((rev - exp) * 0.1).toLocaleString();
     document.getElementById("valCash").innerText = (rev - exp).toLocaleString();
 }
 
@@ -237,28 +241,25 @@ async function handleFormSubmit(e) {
     e.preventDefault();
     if(!document.getElementById("hiddenItem").value) return alert("계정과목을 선택하세요.");
     
+    const type = document.querySelector('input[name="inputType"]:checked').value;
     const totalAmt = Number(document.getElementById("inputAmount").value);
-    let supply = totalAmt;
-    let vat = 0;
-    if(document.getElementById("vatCheck").checked) {
-        supply = Math.round(totalAmt / 1.1);
-        vat = totalAmt - supply;
-    }
+    
+    // 차변/대변 로직 (간소화: 비용/자산증가=Debit, 매출/부채증가=Credit)
+    let debit = 0, credit = 0;
+    if (type === '비용' || type === '자산') debit = totalAmt;
+    else credit = totalAmt; // 매출, 부채, 자본
 
     const payload = {
-        date: document.getElementById("dateField").value,
-        type: document.querySelector('input[name="inputType"]:checked').value,
-        account_name: document.getElementById("hiddenItem").value,
-        category: document.getElementById("hiddenStandard").value,
-        description: document.getElementById("inputDesc").value,
-        amount: supply,
-        vat: vat,
-        payer: document.getElementById("payerName").value,
-        method: document.getElementById("payMethod").checked ? document.getElementById("cardSelect").value : "계좌/현금",
-        project: document.getElementById("projectSelect").value
+        Date: document.getElementById("dateField").value,
+        Type: type,
+        Account: document.getElementById("hiddenItem").value,
+        Description: document.getElementById("inputDesc").value,
+        Debit: debit,
+        Credit: credit,
+        Project: document.getElementById("projectSelect").value,
+        Operator: myInfo ? myInfo.emp_name : "unknown" // 작성자
     };
 
-    // [수정] ac_journal 사용
     const { error } = await _supabase.from('ac_journal').insert(payload);
     if(error) alert("저장 실패: " + error.message);
     else {
@@ -273,27 +274,29 @@ async function handleFormSubmit(e) {
 async function loadHistory() {
     const el = document.getElementById("historyList");
     el.innerHTML = "로딩 중...";
-    const { data } = await _supabase.from('ac_journal').select('*').order('date', {ascending:false}).limit(10);
+    // [수정] Trans_ID는 자동생성 안될수도 있으니 created_at 기준 정렬 추천
+    const { data } = await _supabase.from('ac_journal').select('*').order('Date', {ascending:false}).limit(10);
     
     el.innerHTML = "";
     if(!data || data.length === 0) { el.innerHTML = "<div class='text-center p-3 text-muted'>내역 없음</div>"; return; }
     
     data.forEach(item => {
-        const total = Number(item.amount) + Number(item.vat);
+        const amt = Number(item.Debit || 0) + Number(item.Credit || 0);
         const div = document.createElement("div");
         div.className = "list-group-item d-flex justify-content-between align-items-center";
         div.innerHTML = `
-            <div><span class="badge bg-secondary me-1">${item.type}</span><strong>${item.account_name}</strong>
-            <small class="text-muted"> | ${item.description}</small></div>
-            <div class="text-end fw-bold">${total.toLocaleString()}
-            <button class="btn btn-outline-danger btn-sm ms-2" onclick="deleteTx(${item.id})">x</button></div>
-        `;
+            <div><span class="badge bg-secondary me-1">${item.Type}</span><strong>${item.Account}</strong>
+            <small class="text-muted"> | ${item.Description}</small></div>
+            <div class="text-end fw-bold">${amt.toLocaleString()}
+            <button class="btn btn-outline-danger btn-sm ms-2" onclick="deleteTx('${item.Trans_ID || item.id}')">x</button></div>
+        `; // Trans_ID가 없으면 id(int8) 사용
         el.appendChild(div);
     });
 }
 async function deleteTx(id) {
     if(confirm("삭제하시겠습니까?")) {
-        await _supabase.from('ac_journal').delete().eq('id', id);
+        // id 컬럼이 int8이라면 숫자여야 함
+        await _supabase.from('ac_journal').delete().eq('Trans_ID', id); // 혹은 'id'
         loadHistory(); refreshDashboard();
     }
 }
@@ -310,17 +313,17 @@ async function syncSalary() {
     let total = 0;
     salaries.forEach(s => total += Number(s.pay_total));
 
-    // [수정] ac_journal 사용
+    // [수정] ac_journal 구조에 맞게 Insert
     await _supabase.from('ac_journal').insert({
-        date: `${ym}-25`, type: '비용', account_name: '급여', category: '인건비',
-        description: `${ym}월 급여 (${salaries.length}명)`, amount: total, vat: 0,
-        payer: '회사', method: '이체', project: '본사'
+        Date: `${ym}-25`, Type: '비용', Account: '급여', 
+        Description: `${ym}월 급여 (${salaries.length}명)`, 
+        Debit: total, Credit: 0,
+        Project: '본사', Operator: 'System'
     });
     alert("완료"); refreshDashboard();
 }
 
 async function syncApprovals() {
-    // 1) ac_approval에서 완료된 지출결의서 조회
     const { data: approvals } = await _supabase.from('ac_approval')
         .select('*')
         .eq('status', '완료') 
@@ -332,16 +335,12 @@ async function syncApprovals() {
     let count = 0;
     for (const doc of approvals) {
         const { error } = await _supabase.from('ac_journal').insert({
-            date: new Date().toISOString().slice(0,10),
-            type: '비용',
-            account_name: '미분류비용', // 기본값
-            category: '운영비',
-            description: `[전자결재] ${doc.title}`,
-            amount: doc.amount,
-            vat: 0,
-            payer: doc.drafter_name,
-            method: '미지정',
-            project: '본사'
+            Date: new Date().toISOString().slice(0,10),
+            Type: '비용',
+            Account: '미분류비용', 
+            Description: `[전자결재] ${doc.title}`,
+            Debit: doc.amount, Credit: 0,
+            Project: '본사', Operator: doc.drafter_name
         });
         if(!error) count++;
     }
@@ -369,12 +368,12 @@ async function saveInfo() {
 
 // 7. 리포트
 async function printReport() {
-    const { data } = await _supabase.from('ac_journal').select('*'); // ac_journal 사용
+    const { data } = await _supabase.from('ac_journal').select('*');
     let rev={}, exp={}, totalRev=0, totalExp=0;
     data.forEach(r => {
-        const amt = Number(r.amount);
-        if(r.type==='매출') { rev[r.account_name] = (rev[r.account_name]||0)+amt; totalRev+=amt; }
-        else if(r.type==='비용') { exp[r.account_name] = (exp[r.account_name]||0)+amt; totalExp+=amt; }
+        const amt = Number(r.Debit || 0) + Number(r.Credit || 0);
+        if(r.Type==='매출') { rev[r.Account] = (rev[r.Account]||0)+amt; totalRev+=amt; }
+        else if(r.Type==='비용') { exp[r.Account] = (exp[r.Account]||0)+amt; totalExp+=amt; }
     });
     
     const html = `
@@ -419,17 +418,18 @@ function filterAccounts() {
     const list = document.getElementById("accountSearchResult");
     list.innerHTML="";
     const filtered = mData.filter(i => {
-        const typeMatch = (t==='자산') ? ['자산','부채','자본'].includes(i.type) : (i.type===t);
-        return typeMatch && (i.name.includes(k) || (i.category||"").includes(k));
+        // [수정] 필드명: Type, Item, Standard
+        const typeMatch = (t==='자산') ? ['자산','부채','자본'].includes(i.Type) : (i.Type===t);
+        return typeMatch && (i.Item.includes(k) || (i.Standard||"").includes(k));
     });
     filtered.forEach(acc => {
         const d = document.createElement("div");
         d.className = "list-group-item list-group-item-action search-list-item";
-        d.innerHTML = `<strong>${acc.name}</strong> <small>(${acc.category})</small>`;
+        d.innerHTML = `<strong>${acc.Item}</strong> <small>(${acc.Standard})</small>`;
         d.onclick = () => {
-            document.getElementById("displayAccount").value = acc.name;
-            document.getElementById("hiddenItem").value = acc.name;
-            document.getElementById("hiddenStandard").value = acc.category;
+            document.getElementById("displayAccount").value = acc.Item;
+            document.getElementById("hiddenItem").value = acc.Item;
+            document.getElementById("hiddenStandard").value = acc.Standard;
             updateDynamicUI(acc);
             selectModal.hide();
         };
@@ -442,10 +442,12 @@ function updateDynamicUI(acc) {
     const vat = document.getElementById("vatCheck");
     area.innerHTML=""; special.value="";
     
-    if(acc.is_tax_free) { vat.checked=false; vat.disabled=true; } 
+    // [수정] 필드명: Tax_Free (boolean 아닐 수 있음, 체크 필요)
+    if(acc.Tax_Free == 'TRUE' || acc.Tax_Free === true) { vat.checked=false; vat.disabled=true; } 
     else { vat.disabled=false; vat.checked=true; }
     
-    if(acc.special_code==='salary') {
+    // [수정] 필드명: SpecialType
+    if(acc.SpecialType==='salary') {
         special.value="salary";
         area.innerHTML=`<div class="special-box"><small class="fw-bold text-success">급여 입력 모드</small></div>`;
         vat.checked=false;
@@ -457,8 +459,8 @@ async function confAdd() {
     const cat = document.getElementById("addMediumInput").value;
     const type = document.querySelector('input[name="inputType"]:checked').value;
     if(!name) return alert("입력하세요");
-    // [수정] ac_master 사용
-    await _supabase.from('ac_master').insert({type, category:cat, name});
+    // [수정] 필드명: Type, Standard, Item
+    await _supabase.from('ac_master').insert({Type:type, Standard:cat, Item:name});
     alert("추가됨"); addModal.hide(); loadMasterData();
 }
 </script>
