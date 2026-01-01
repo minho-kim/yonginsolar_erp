@@ -38,7 +38,7 @@
     </div>
     <div>
       <button class="btn btn-light btn-sm btn-rounded me-1" onclick="location.href='index.html'">🏠 홈으로</button>
-      <button class="btn btn-outline-secondary btn-sm btn-rounded me-1" onclick="openSettings()">⚙️ 요율 설정</button>
+      <button class="btn btn-outline-secondary btn-sm btn-rounded me-1" onclick="openSettings()">⚙️ 설정 관리</button>
       <button class="btn btn-primary btn-sm btn-rounded shadow-sm" onclick="openInviteModal()">✨ 신규 등록</button>
     </div>
   </div>
@@ -60,26 +60,47 @@
 <div class="modal fade" id="settingsModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header"><h5 class="modal-title fw-bold">⚙️ 4대보험 및 비과세 설정</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-header border-0 pb-0"><h5 class="modal-title fw-bold">⚙️ 시스템 통합 설정</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
-        <p class="small text-muted alert alert-light">요율은 <strong>퍼센트(%)</strong> 단위로 입력하세요.</p>
-        <h6 class="fw-bold text-primary small border-bottom pb-1">📊 요율 설정 (Rates)</h6>
-        <div class="row g-2 mb-3">
-          <div class="col-6"><label class="small text-muted">국민연금</label><div class="input-group input-group-sm"><input type="number" id="set_pension" class="form-control" step="0.01"><span class="input-group-text">%</span></div></div>
-          <div class="col-6"><label class="small text-muted">건강보험</label><div class="input-group input-group-sm"><input type="number" id="set_health" class="form-control" step="0.01"><span class="input-group-text">%</span></div></div>
-          <div class="col-6"><label class="small text-muted">장기요양(건보의%)</label><div class="input-group input-group-sm"><input type="number" id="set_care" class="form-control" step="0.01"><span class="input-group-text">%</span></div></div>
-          <div class="col-6"><label class="small text-muted">고용보험</label><div class="input-group input-group-sm"><input type="number" id="set_employ" class="form-control" step="0.01"><span class="input-group-text">%</span></div></div>
-          <div class="col-6"><label class="small text-muted">소득세(간이)</label><div class="input-group input-group-sm"><input type="number" id="set_income" class="form-control" step="0.01"><span class="input-group-text">%</span></div></div>
-          <div class="col-6"><label class="small text-muted">지방소득세(소득세%)</label><div class="input-group input-group-sm"><input type="number" id="set_local" class="form-control" step="0.01"><span class="input-group-text">%</span></div></div>
-        </div>
-        <h6 class="fw-bold text-success small border-bottom pb-1">💰 비과세 한도 (월)</h6>
-        <div class="row g-2">
-          <div class="col-4"><label class="small text-muted">식대</label><input type="number" id="set_meal" class="form-control form-control-sm" step="10000"></div>
-          <div class="col-4"><label class="small text-muted">차량유지</label><input type="number" id="set_car" class="form-control form-control-sm" step="10000"></div>
-          <div class="col-4"><label class="small text-muted">육아수당</label><input type="number" id="set_child" class="form-control form-control-sm" step="10000"></div>
+        <ul class="nav nav-tabs mb-3" id="settingTab" role="tablist">
+          <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#setTax">📊 요율/세금</a></li>
+          <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#setCompany">🏢 회사 정보</a></li>
+        </ul>
+        <div class="tab-content">
+          <div class="tab-pane fade show active" id="setTax">
+            <h6 class="fw-bold text-primary small border-bottom pb-1 mb-2">4대보험 총 요율 (자동 50:50 분할)</h6>
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label class="small text-muted">국민연금 총합 (%)</label>
+                <input type="number" id="set_pension_total" class="form-control form-control-sm" step="0.01" oninput="calcHalf('pension')">
+                <div class="x-small text-secondary mt-1">인당: <span id="half_pension">0</span>%</div>
+              </div>
+              <div class="col-6">
+                <label class="small text-muted">건강보험 총합 (%)</label>
+                <input type="number" id="set_health_total" class="form-control form-control-sm" step="0.01" oninput="calcHalf('health')">
+                <div class="x-small text-secondary mt-1">인당: <span id="half_health">0</span>%</div>
+              </div>
+            </div>
+            <h6 class="fw-bold text-dark small border-bottom pb-1 mb-2">기타 요율 및 비과세</h6>
+            <div class="row g-2 mb-3">
+              <div class="col-6"><label class="small text-muted">장기요양(건보의%)</label><input type="number" id="set_care" class="form-control form-control-sm" step="0.01"></div>
+              <div class="col-6"><label class="small text-muted">고용보험(근로자%)</label><input type="number" id="set_employ_emp" class="form-control form-control-sm" step="0.01"></div>
+              <div class="col-4"><label class="small text-muted">식대비과세</label><input type="number" id="set_meal" class="form-control form-control-sm"></div>
+              <div class="col-4"><label class="small text-muted">차량비과세</label><input type="number" id="set_car" class="form-control form-control-sm"></div>
+              <div class="col-4"><label class="small text-muted">육아비과세</label><input type="number" id="set_child" class="form-control form-control-sm"></div>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="setCompany">
+            <div class="row g-2">
+              <div class="col-12"><label class="small text-muted">법인명(조합명)</label><input type="text" id="set_orgName" class="form-control form-control-sm"></div>
+              <div class="col-12"><label class="small text-muted">대표자명(이사장)</label><input type="text" id="set_ceoName" class="form-control form-control-sm"></div>
+              <div class="col-12"><label class="small text-muted">사업자등록번호</label><input type="text" id="set_bizNum" class="form-control form-control-sm"></div>
+              <div class="col-12"><label class="small text-muted">회사 주소</label><input type="text" id="set_address" class="form-control form-control-sm"></div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="modal-footer p-2"><button class="btn btn-primary w-100 btn-rounded" onclick="saveSettings()">설정 저장</button></div>
+      <div class="modal-footer p-2 border-0"><button class="btn btn-primary w-100 btn-rounded" onclick="saveSettings()">설정 통합 저장</button></div>
     </div>
   </div>
 </div>
@@ -213,6 +234,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let settings = {};
+let companyInfo = {};
 let currentEmpId = null, currentEmpName = null;
 let confirmCallback = null;
 let alertModal, confirmModal, settingsModal, inviteModal, detailModal, adminCertModal, loadingModal;
@@ -232,6 +254,7 @@ window.onload = async function() {
 
     await loadList();
     await loadSettings();
+    await loadCompanyInfo();
 };
 
 function showAlert(msg) { document.getElementById("alertBody").innerHTML = msg; alertModal.show(); }
@@ -298,38 +321,91 @@ async function loadList() {
     }
 }
 
-// 2. 설정 (요율) - 기존 유지
+// 2. 설정 (ref_settings 연동 및 스마트 입력)
 async function loadSettings() {
-    const { data } = await _supabase.from('sys_tax_settings').select('*').eq('id', 1).single();
-    if(data) settings = data;
+    const { data } = await _supabase.from('ref_settings').select('item_key, item_value');
+    if(data) {
+        settings = {};
+        data.forEach(r => { settings[r.item_key] = r.item_value; });
+    }
 }
+
+async function loadCompanyInfo() {
+    const { data } = await _supabase.from('ref_company_info').select('*');
+    if(data) {
+        companyInfo = {};
+        data.forEach(r => { companyInfo[r.key] = r.value; });
+    }
+}
+
 function openSettings() {
-    if(!settings.rate_pension) loadSettings();
-    document.getElementById("set_pension").value = settings.rate_pension || 4.5;
-    document.getElementById("set_health").value = settings.rate_health || 3.545;
-    document.getElementById("set_care").value = settings.rate_care || 12.95;
-    document.getElementById("set_employ").value = settings.rate_employ || 0.9;
-    document.getElementById("set_income").value = settings.rate_income || 3.0;
-    document.getElementById("set_local").value = settings.rate_local || 10.0;
-    document.getElementById("set_meal").value = settings.limit_meal || 200000;
-    document.getElementById("set_car").value = settings.limit_car || 200000;
-    document.getElementById("set_child").value = settings.limit_child || 200000;
+    // 요율 탭 세팅 (근로자분 * 2 하여 총액으로 표시)
+    document.getElementById("set_pension_total").value = ((settings['pension_rate_emp'] || 0.045) * 100 * 2).toFixed(2);
+    document.getElementById("set_health_total").value = ((settings['health_rate_emp'] || 0.03545) * 100 * 2).toFixed(2);
+    calcHalf('pension'); calcHalf('health');
+
+    document.getElementById("set_care").value = (settings['care_rate_ratio'] || 0.1295) * 100;
+    document.getElementById("set_employ_emp").value = (settings['employ_rate_emp'] || 0.009) * 100;
+    document.getElementById("set_meal").value = settings['limit_meal'] || 200000;
+    document.getElementById("set_car").value = settings['limit_car'] || 200000;
+    document.getElementById("set_child").value = settings['limit_child'] || 200000;
+
+    // 회사 정보 탭 세팅
+    document.getElementById("set_orgName").value = companyInfo['orgName'] || "";
+    document.getElementById("set_ceoName").value = companyInfo['ceoName'] || "";
+    document.getElementById("set_bizNum").value = companyInfo['bizNum'] || "";
+    document.getElementById("set_address").value = companyInfo['company_address'] || "";
+
     settingsModal.show();
 }
+
+function calcHalf(type) {
+    const val = Number(document.getElementById(`set_${type}_total`).value);
+    document.getElementById(`half_${type}`).innerText = (val / 2).toFixed(3);
+}
+
 async function saveSettings() {
-    const updates = {
-        rate_pension: Number(document.getElementById("set_pension").value),
-        rate_health: Number(document.getElementById("set_health").value),
-        rate_care: Number(document.getElementById("set_care").value),
-        rate_employ: Number(document.getElementById("set_employ").value),
-        rate_income: Number(document.getElementById("set_income").value),
-        rate_local: Number(document.getElementById("set_local").value),
-        limit_meal: Number(document.getElementById("set_meal").value),
-        limit_car: Number(document.getElementById("set_car").value),
-        limit_child: Number(document.getElementById("set_child").value)
-    };
-    await _supabase.from('sys_tax_settings').upsert({id: 1, ...updates});
-    showAlert("설정이 저장되었습니다."); settingsModal.hide(); loadSettings();
+    showLoading();
+    try {
+        const penHalf = Number(document.getElementById("set_pension_total").value) / 200;
+        const hltHalf = Number(document.getElementById("set_health_total").value) / 200;
+
+        // ref_settings 일괄 업데이트 (Upsert)
+        const updates = [
+            { item_key: 'pension_rate_emp', item_value: penHalf },
+            { item_key: 'pension_rate_biz', item_value: penHalf },
+            { item_key: 'health_rate_emp', item_value: hltHalf },
+            { item_key: 'health_rate_biz', item_value: hltHalf },
+            { item_key: 'care_rate_ratio', item_value: Number(document.getElementById("set_care").value) / 100 },
+            { item_key: 'employ_rate_emp', item_value: Number(document.getElementById("set_employ_emp").value) / 100 },
+            { item_key: 'limit_meal', item_value: Number(document.getElementById("set_meal").value) },
+            { item_key: 'limit_car', item_value: Number(document.getElementById("set_car").value) },
+            { item_key: 'limit_child', item_value: Number(document.getElementById("set_child").value) }
+        ];
+
+        for(const item of updates) {
+            await _supabase.from('ref_settings').upsert(item, { onConflict: 'item_key' });
+        }
+
+        // ref_company_info 동기화 업데이트
+        const org = document.getElementById("set_orgName").value;
+        const ceo = document.getElementById("set_ceoName").value;
+        const compUpdates = [
+            { key: 'orgName', value: org }, { key: 'company_name', value: org },
+            { key: 'ceoName', value: ceo }, { key: 'chairman_name', value: ceo },
+            { key: 'bizNum', value: document.getElementById("set_bizNum").value },
+            { key: 'company_address', value: document.getElementById("set_address").value }
+        ];
+
+        for(const item of compUpdates) {
+            await _supabase.from('ref_company_info').upsert(item, { onConflict: 'key' });
+        }
+
+        await loadSettings(); await loadCompanyInfo();
+        hideLoading(); settingsModal.hide(); showAlert("모든 설정이 안전하게 저장되었습니다.");
+    } catch (e) {
+        hideLoading(); showAlert("저장 중 오류 발생: " + e.message);
+    }
 }
 
 // 3. 직원 등록 - 기존 유지
@@ -552,7 +628,7 @@ async function cancelResign() {
     });
 }
 
-// 급여 데이터 로드
+// 급여 데이터 로드 (ref_settings 연동형)
 async function loadSalaryData() {
     const month = document.getElementById("salaryMonth").value;
     const badge = document.getElementById("salaryStatusBadge");
@@ -568,7 +644,7 @@ async function loadSalaryData() {
     } else {
         const annual = Number(document.getElementById("editSalary").value) || 0;
         const monthly = Math.floor(annual / 12);
-        const meal = Math.min(settings.limit_meal, 200000); 
+        const meal = Math.min(settings['limit_meal'] || 200000, 200000); 
         let basic = monthly - meal; 
         document.getElementById("payBasic").value = basic > 0 ? basic : monthly;
         document.getElementById("payMeal").value = meal;
@@ -579,81 +655,64 @@ async function loadSalaryData() {
     }
 }
 
-// 급여 저장
-// [긴급 수정] 급여 저장 로직 (삭제 기능 완전 제거 -> 안전한 덮어쓰기 적용)
+// [정밀 수정] 급여 저장 로직 (ref_settings 연동 + 10원 단위 절사 + Upsert)
 async function saveSalary() {
     const month = document.getElementById("salaryMonth").value;
     if (!month) return showAlert("귀속월을 선택해주세요.");
 
-    // 입력값 가져오기
     const p_basic = Number(document.getElementById("payBasic").value) || 0;
     const p_meal = Number(document.getElementById("payMeal").value) || 0;
     const p_car = Number(document.getElementById("payCar").value) || 0;
     const p_child = Number(document.getElementById("payChild").value) || 0;
     const p_bonus = Number(document.getElementById("payBonus").value) || 0;
-    
-    // 계산 로직
     const p_total = p_basic + p_meal + p_car + p_child + p_bonus;
-    const tax_base = p_total - (p_meal + p_car + p_child); // 비과세 제외
+
+    // 비과세 한도 체크 (settings 참조)
+    const tf_meal = Math.min(p_meal, settings['limit_meal'] || 200000);
+    const tf_car = Math.min(p_car, settings['limit_car'] || 200000);
+    const tf_child = Math.min(p_child, settings['limit_child'] || 200000);
+    const tax_base = p_total - (tf_meal + tf_car + tf_child); 
     
-    // 세금 계산 (설정값 적용)
-    const pen = Math.floor(tax_base * (settings.rate_pension / 100));
-    const hlt = Math.floor(tax_base * (settings.rate_health / 100));
-    const care = Math.floor(hlt * (settings.rate_care / 100)); 
-    const emp = Math.floor(tax_base * (settings.rate_employ / 100));
-    const inc = Math.floor(tax_base * (settings.rate_income / 100)); 
-    const loc = Math.floor(inc * 0.1);
+    // 4대보험 계산 (10원 단위 절사 로직)
+    const pen = Math.floor(tax_base * (settings['pension_rate_emp'] || 0.045));
+    const hlt = Math.floor((tax_base * (settings['health_rate_emp'] || 0.03545)) / 10) * 10;
+    const care = Math.floor((hlt * (settings['care_rate_ratio'] || 0.1295)) / 10) * 10;
+    const emp = Math.floor(tax_base * (settings['employ_rate_emp'] || 0.009));
+
+    // 소득세 (면세 구간 106만원 적용)
+    let inc = 0, loc = 0;
+    if (tax_base >= 1060000) {
+        inc = Math.floor((tax_base * (settings['income_tax_rate_simple'] || 0.03)) / 10) * 10;
+        loc = Math.floor((inc * (settings['local_tax_rate_ratio'] || 0.1)) / 10) * 10;
+    }
+
     const d_total = pen + hlt + care + emp + inc + loc;
     const net = p_total - d_total;
 
-    // 저장할 데이터 뭉치
     const payload = {
-        emp_id: currentEmpId, 
-        emp_name: currentEmpName, 
-        year_month: month,
+        emp_id: currentEmpId, emp_name: currentEmpName, year_month: month,
         pay_basic: p_basic, pay_meal: p_meal, pay_car: p_car, pay_child: p_child, pay_bonus: p_bonus, pay_total: p_total,
         ded_pension: pen, ded_health: hlt, ded_care: care, ded_employ: emp, ded_income: inc, ded_local: loc, ded_total: d_total, net_pay: net
     };
 
     showLoading();
-
-    // [안전 로직 1단계] 이미 존재하는 데이터인지 확인
-    const { data: existing } = await _supabase
-        .from('hr_salary')
-        .select('id')
-        .eq('emp_id', currentEmpId)
-        .eq('year_month', month)
-        .single();
+    const { data: existing } = await _supabase.from('hr_salary').select('id').eq('emp_id', currentEmpId).eq('year_month', month).single();
 
     let error;
-
     if (existing) {
-        // [수정] 데이터가 있으면 -> 그 줄만 '업데이트' (삭제 안 함!)
-        const { error: updateErr } = await _supabase
-            .from('hr_salary')
-            .update(payload)
-            .eq('id', existing.id); // PK로 안전하게 업데이트
+        const { error: updateErr } = await _supabase.from('hr_salary').update(payload).eq('id', existing.id);
         error = updateErr;
     } else {
-        // [신규] 데이터가 없으면 -> '추가' (Insert)
-        const { error: insertErr } = await _supabase
-            .from('hr_salary')
-            .insert(payload);
+        const { error: insertErr } = await _supabase.from('hr_salary').insert(payload);
         error = insertErr;
     }
 
     hideLoading();
-
-    if (error) {
-        console.error(error);
-        showAlert("저장 실패: " + error.message);
-    } else {
-        showAlert("급여가 안전하게 저장되었습니다.");
-        loadSalaryData(); // 화면 갱신
-    }
+    if (error) showAlert("저장 실패: " + error.message);
+    else { showAlert("급여가 안전하게 저장되었습니다."); loadSalaryData(); }
 }
 
-// 근태 로드
+// 근태 로드 - 기존 유지
 async function loadLeave() {
     let generated = 0;
     const { data: emp } = await _supabase.from('ref_employees').select('hire_date').eq('emp_id', currentEmpId).single();
