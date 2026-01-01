@@ -7,7 +7,9 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script> <style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  
+  <style>
     body { background-color: #f0f2f5; font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; padding: 20px; }
     .main-card { max-width: 900px; margin: 0 auto; background: white; border-radius: 20px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
     .btn-rounded { border-radius: 50px; }
@@ -126,10 +128,13 @@
                 </div>
               </div>
               <div class="col-md-6">
-                <label class="form-label small fw-bold text-muted">근로계약서</label>
+                <label class="form-label small fw-bold text-muted">근로계약서 업로드</label>
                 <div id="contractView" class="mb-2"></div>
-                <div class="input-group"><input type="text" id="contractUrlInput" class="form-control form-control-sm" placeholder="계약서 PDF 링크(URL)"><button class="btn btn-outline-secondary btn-sm" onclick="saveContractUrl()">저장</button></div>
-                <div class="form-text x-small">* 구글 드라이브 공유 링크 등을 입력하세요.</div>
+                <div class="input-group">
+                    <input type="file" id="contractFile" class="form-control form-control-sm" accept=".pdf,.png,.jpg,.jpeg">
+                    <button class="btn btn-outline-primary btn-sm" onclick="uploadContract()">업로드</button>
+                </div>
+                <div class="form-text x-small text-muted">* PDF 또는 이미지 파일을 선택하세요.</div>
               </div>
               
               <div class="col-12 mt-4 pt-3 border-top d-flex justify-content-end gap-2" id="btnResignArea">
@@ -172,6 +177,10 @@
 <div class="modal fade" id="alertModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content"><div class="modal-body text-center py-4"><p class="mb-0 fw-bold" id="alertBody"></p></div><div class="modal-footer justify-content-center p-1 border-0"><button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">확인</button></div></div></div></div>
 <div class="modal fade" id="confirmModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content"><div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold">확인</h6></div><div class="modal-body text-center py-3" id="confirmBody"></div><div class="modal-footer justify-content-center border-0 pt-0"><button type="button" class="btn btn-secondary btn-sm me-2" data-bs-dismiss="modal">취소</button><button type="button" class="btn btn-danger btn-sm" id="btnConfirmYes">확인</button></div></div></div></div>
 
+<div class="modal fade" id="adminCertModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content"><div class="modal-header"><h6 class="modal-title fw-bold">📄 증명서 발급</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><label class="small text-muted mb-1">발급 용도</label><input type="text" id="adminCertPurpose" class="form-control form-control-sm" placeholder="예: 금융기관 제출용"></div><div class="modal-footer p-1 border-0 justify-content-center"><button class="btn btn-primary btn-sm w-100" onclick="reqIssueCert()">발급 (PDF)</button></div></div></div></div>
+
+<div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content text-center p-4"><div class="spinner-border text-primary mb-3"></div><h6 class="mb-0">처리 중...</h6></div></div></div>
+
 <script>
 // Supabase 설정
 const SUPABASE_URL = 'https://ifdqlwxgqgsvnawmhlfc.supabase.co'; 
@@ -181,7 +190,8 @@ const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let settings = {};
 let currentEmpId = null, currentEmpName = null;
 let confirmCallback = null;
-let alertModal, confirmModal, settingsModal, inviteModal, detailModal;
+let alertModal, confirmModal, settingsModal, inviteModal, detailModal, adminCertModal, loadingModal;
+let hasCheckedExpired = false;
 
 window.onload = async function() {
     alertModal = new bootstrap.Modal(document.getElementById('alertModal'));
@@ -189,6 +199,8 @@ window.onload = async function() {
     settingsModal = new bootstrap.Modal(document.getElementById('settingsModal'));
     inviteModal = new bootstrap.Modal(document.getElementById('inviteModal'));
     detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
+    adminCertModal = new bootstrap.Modal(document.getElementById('adminCertModal'));
+    loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
 
     document.getElementById("btnConfirmYes").onclick = function() { if(confirmCallback) confirmCallback(); confirmModal.hide(); };
     document.getElementById("salaryMonth").value = new Date().toISOString().slice(0, 7);
@@ -199,8 +211,10 @@ window.onload = async function() {
 
 function showAlert(msg) { document.getElementById("alertBody").innerText = msg; alertModal.show(); }
 function showConfirm(msg, cb) { document.getElementById("confirmBody").innerHTML = msg; confirmCallback = cb; confirmModal.show(); }
+function showLoading() { loadingModal.show(); }
+function hideLoading() { loadingModal.hide(); }
 
-// 1. 직원 목록 불러오기
+// 1. 직원 목록 불러오기 (3년 경과 로직 포함)
 async function loadList() {
     const tbody = document.getElementById("empListBody");
     tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4">로딩 중...</td></tr>';
@@ -210,12 +224,36 @@ async function loadList() {
     if(error || !list) { tbody.innerHTML = '<tr><td colspan="5" class="text-center">데이터 없음</td></tr>'; return; }
     
     tbody.innerHTML = "";
+    const threeYearsAgo = new Date();
+    threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
+    let expiredCount = 0;
+
     list.forEach(u => {
-        let statusBadge = u.resign_date ? `<span class="badge bg-secondary">퇴사</span>` : `<span class="badge bg-success">재직</span>`;
+        let isResigned = !!u.resign_date;
+        let isExpired = false;
+        
+        if (isResigned) {
+            const rDate = new Date(u.resign_date);
+            if (rDate <= threeYearsAgo) {
+                isExpired = true;
+                expiredCount++;
+            }
+        }
+
+        let statusBadge = "";
+        if (isResigned) {
+            if (isExpired) statusBadge = `<span class="badge bg-danger">3년 경과 (파기대상)</span>`;
+            else statusBadge = `<span class="badge bg-secondary">퇴사</span>`;
+        } else {
+            statusBadge = `<span class="badge bg-success">재직</span>`;
+        }
+
         let roleBadge = u.role === 'admin' ? '<span class="badge bg-danger">관리자</span>' : '<span class="badge bg-light text-dark">일반</span>';
         
         const tr = document.createElement("tr");
-        if(u.resign_date) tr.style.opacity = "0.6";
+        if(isResigned) tr.style.opacity = "0.7"; 
+        if(isExpired) tr.style.backgroundColor = "#fff5f5";
+        
         tr.onclick = () => openDetail(u);
         tr.innerHTML = `
             <td class="fw-bold text-secondary">${u.emp_id}</td>
@@ -226,6 +264,13 @@ async function loadList() {
         `;
         tbody.appendChild(tr);
     });
+
+    if (expiredCount > 0 && !hasCheckedExpired) {
+        showConfirm(`⚠️ <strong>개인정보 파기 알림</strong><br>퇴사 후 3년이 지난 직원이 <strong>${expiredCount}명</strong> 있습니다.<br>법적 의무에 따라 삭제하시겠습니까?`, () => {
+            showAlert("목록에서 붉은색으로 표시된 직원을 클릭하여 [완전 삭제]를 진행해주세요.");
+        });
+        hasCheckedExpired = true;
+    }
 }
 
 // 2. 설정 (요율)
@@ -269,16 +314,13 @@ async function runInvite() {
     const email = document.getElementById("newEmail").value;
     if(!name || !email) return showAlert("이름과 이메일을 입력하세요.");
     
-    // 사번 생성 (연도 + 3자리 순번)
     const year = new Date().getFullYear();
     const { count } = await _supabase.from('ref_employees').select('*', { count: 'exact', head: true }).like('emp_id', `${year}%`);
     const seq = (count || 0) + 1;
     const empId = `${year}${String(seq).padStart(3, '0')}`;
 
     const { error } = await _supabase.from('ref_employees').insert({
-        emp_id: empId,
-        emp_name: name,
-        email: email,
+        emp_id: empId, emp_name: name, email: email,
         position: document.getElementById("newRank").value,
         role: document.getElementById("newRole").value,
         department: document.getElementById("newDept").value,
@@ -296,8 +338,10 @@ function openDetail(u) {
     document.getElementById("detailId").innerText = u.emp_id;
     
     document.getElementById("editSalary").value = u.base_salary || 0;
-    document.getElementById("salaryApplyDate").valueAsDate = new Date(); // 오늘
-    document.getElementById("contractUrlInput").value = u.contract_url || "";
+    document.getElementById("salaryApplyDate").valueAsDate = new Date(); 
+    
+    // 계약서 파일 삭제를 위해 URL을 hidden input에 저장
+    document.getElementById("hiddenContractUrl").value = u.contract_url || "";
     
     const viewDiv = document.getElementById("contractView");
     if(u.contract_url) viewDiv.innerHTML = `<a href="${u.contract_url}" target="_blank" class="btn btn-sm btn-info w-100 text-white">📄 계약서 보기</a>`;
@@ -309,36 +353,99 @@ function openDetail(u) {
         document.getElementById("editSalary").disabled = true;
         document.getElementById("salaryApplyDate").disabled = true;
         document.getElementById("btnSaveInfo").classList.add("d-none");
-        area.innerHTML = `<button class="btn btn-sm btn-warning" onclick="cancelResign()">↩️ 퇴사 취소</button>`;
+        
+        area.innerHTML = `
+            <button class="btn btn-sm btn-outline-primary" onclick="openAdminCertModal()">📄 증명서 발급</button>
+            <button class="btn btn-sm btn-warning" onclick="cancelResign()">↩️ 퇴사 취소</button>
+            <button class="btn btn-sm btn-danger ms-2" onclick="reqDeletePermanent()">🗑️ 완전 삭제</button>
+        `;
     } else {
         document.getElementById("editSalary").disabled = false;
         document.getElementById("salaryApplyDate").disabled = false;
         document.getElementById("btnSaveInfo").classList.remove("d-none");
         area.innerHTML = `<button class="btn btn-sm btn-outline-danger" onclick="doResign()">⛔ 퇴사 처리</button>`;
-        loadSalaryData(); // 급여 탭 로드
-        loadLeave(); // 근태 탭 로드
+        loadSalaryData(); 
+        loadLeave(); 
     }
     
     detailModal.show();
 }
 
-// 정보 저장
+// [핵심] 파일 업로드 함수 (Supabase Storage)
+async function uploadContract() {
+    const fileInput = document.getElementById("contractFile");
+    if (fileInput.files.length === 0) return showAlert("파일을 선택해주세요.");
+
+    const file = fileInput.files[0];
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${currentEmpId}_contract_${Date.now()}.${fileExt}`;
+    
+    showLoading();
+    // Storage에 업로드
+    const { data, error } = await _supabase.storage.from('contracts').upload(fileName, file, { upsert: true });
+
+    if (error) {
+        hideLoading();
+        return showAlert("업로드 실패: " + error.message);
+    }
+
+    // Public URL 가져오기
+    const { data: { publicUrl } } = _supabase.storage.from('contracts').getPublicUrl(fileName);
+
+    // DB 업데이트
+    await _supabase.from('ref_employees').update({ contract_url: publicUrl }).eq('emp_id', currentEmpId);
+    
+    hideLoading();
+    showAlert("계약서가 등록되었습니다.");
+    
+    // 화면 갱신
+    document.getElementById("hiddenContractUrl").value = publicUrl;
+    document.getElementById("contractView").innerHTML = `<a href="${publicUrl}" target="_blank" class="btn btn-sm btn-info w-100 text-white">📄 계약서 보기</a>`;
+    loadList();
+}
+
+// [핵심] 완전 삭제 (파일 + DB)
+async function reqDeletePermanent() {
+    showConfirm("⚠️ 영구 삭제 경고", `<strong>${currentEmpName}</strong> 님의 데이터와 계약서 파일을<br>모두 삭제하시겠습니까? (복구 불가)`, async function() {
+        showLoading();
+        detailModal.hide();
+        
+        // 1. 파일 삭제 시도
+        const contractUrl = document.getElementById("hiddenContractUrl").value;
+        if (contractUrl) {
+            try {
+                // URL에서 경로 추출 (contracts/ 이후 부분)
+                const path = contractUrl.split('/contracts/')[1]; 
+                if (path) {
+                    await _supabase.storage.from('contracts').remove([path]);
+                }
+            } catch (e) { console.error("파일 삭제 중 오류:", e); }
+        }
+
+        // 2. DB 데이터 삭제 (순차적)
+        await _supabase.from('hr_salary').delete().eq('emp_id', currentEmpId);
+        await _supabase.from('hr_leave_adj').delete().eq('emp_id', currentEmpId);
+        await _supabase.from('hr_salary_contracts').delete().eq('emp_id', currentEmpId);
+        await _supabase.from('log_cert').delete().eq('emp_id', currentEmpId);
+        
+        const { error } = await _supabase.from('ref_employees').delete().eq('emp_id', currentEmpId);
+
+        hideLoading();
+        if (error) showAlert("삭제 실패: " + error.message);
+        else { showAlert("완전히 삭제되었습니다."); loadList(); }
+    });
+}
+
+// 연봉 저장
 async function saveBasicInfo() {
     const sal = Number(document.getElementById("editSalary").value);
     const date = document.getElementById("salaryApplyDate").value;
-    // 1. 정보 수정
     await _supabase.from('ref_employees').update({ base_salary: sal }).eq('emp_id', currentEmpId);
-    // 2. 이력 저장
     await _supabase.from('hr_salary_contracts').insert({ emp_id: currentEmpId, amount: sal, apply_date: date });
     showAlert("저장되었습니다."); loadList();
 }
-async function saveContractUrl() {
-    const url = document.getElementById("contractUrlInput").value;
-    await _supabase.from('ref_employees').update({ contract_url: url }).eq('emp_id', currentEmpId);
-    showAlert("계약서 링크가 저장되었습니다.");
-}
 
-// 퇴사 관리
+// 퇴사 처리
 async function doResign() {
     showConfirm(`${currentEmpName}님을 퇴사 처리하시겠습니까?`, async () => {
         const today = new Date().toISOString().slice(0, 10);
@@ -353,15 +460,12 @@ async function cancelResign() {
     });
 }
 
-// 5. 급여 관리 (자동계산)
+// 급여 데이터 로드 및 계산
 async function loadSalaryData() {
     const month = document.getElementById("salaryMonth").value;
     const badge = document.getElementById("salaryStatusBadge");
     badge.innerText = "조회 중...";
-    
-    // 1) 기존 저장된 급여 있는지 확인
     const { data: saved } = await _supabase.from('hr_salary').select('*').eq('emp_id', currentEmpId).eq('year_month', month).single();
-    
     if(saved) {
         document.getElementById("payBasic").value = saved.pay_basic;
         document.getElementById("payMeal").value = saved.pay_meal;
@@ -370,16 +474,10 @@ async function loadSalaryData() {
         document.getElementById("payBonus").value = saved.pay_bonus;
         badge.innerText = "저장된 데이터"; badge.className = "badge bg-success";
     } else {
-        // 2) 없으면 연봉 기준 자동 계산
         const annual = Number(document.getElementById("editSalary").value) || 0;
         const monthly = Math.floor(annual / 12);
-        
-        // 비과세 적용
-        const meal = Math.min(settings.limit_meal, 200000); // 보통 식대는 포함 or 별도 (여기선 포함 가정 후 분리)
-        // 로직: 월급에 포함되어 있다고 가정하고 분리
-        // 기본급 = 월급 - 비과세항목들
-        let basic = monthly - meal; // 차량 등은 0으로 가정
-        
+        const meal = Math.min(settings.limit_meal, 200000); 
+        let basic = monthly - meal; 
         document.getElementById("payBasic").value = basic > 0 ? basic : monthly;
         document.getElementById("payMeal").value = meal;
         document.getElementById("payCar").value = 0;
@@ -389,6 +487,7 @@ async function loadSalaryData() {
     }
 }
 
+// 급여 저장
 async function saveSalary() {
     const month = document.getElementById("salaryMonth").value;
     const p_basic = Number(document.getElementById("payBasic").value);
@@ -396,129 +495,67 @@ async function saveSalary() {
     const p_car = Number(document.getElementById("payCar").value);
     const p_child = Number(document.getElementById("payChild").value);
     const p_bonus = Number(document.getElementById("payBonus").value);
-    
     const p_total = p_basic + p_meal + p_car + p_child + p_bonus;
-    const tax_base = p_total - (p_meal + p_car + p_child); // 비과세 제외 (단순화)
-
-    // 세금 계산 (약식)
+    const tax_base = p_total - (p_meal + p_car + p_child); 
     const pen = Math.floor(tax_base * (settings.rate_pension / 100));
     const hlt = Math.floor(tax_base * (settings.rate_health / 100));
-    const care = Math.floor(hlt * (settings.rate_care / 100)); // 건보료의 %
+    const care = Math.floor(hlt * (settings.rate_care / 100)); 
     const emp = Math.floor(tax_base * (settings.rate_employ / 100));
-    const inc = Math.floor(tax_base * (settings.rate_income / 100)); // 간이세액 %
+    const inc = Math.floor(tax_base * (settings.rate_income / 100)); 
     const loc = Math.floor(inc * 0.1);
-    
     const d_total = pen + hlt + care + emp + inc + loc;
     const net = p_total - d_total;
-
     const payload = {
         emp_id: currentEmpId, emp_name: currentEmpName, year_month: month,
         pay_basic: p_basic, pay_meal: p_meal, pay_car: p_car, pay_child: p_child, pay_bonus: p_bonus, pay_total: p_total,
-        ded_pension: pen, ded_health: hlt, ded_care: care, ded_employ: emp, ded_income: inc, ded_local: loc, ded_total: d_total,
-        net_pay: net
+        ded_pension: pen, ded_health: hlt, ded_care: care, ded_employ: emp, ded_income: inc, ded_local: loc, ded_total: d_total, net_pay: net
     };
-
-    // Upsert (기존 있으면 수정, 없으면 추가) -> year_month + emp_id가 유니크해야 함.
-    // 하지만 Supabase 기본 insert는 PK 충돌시 에러. select 후 분기하거나 id 확인 필요.
-    // 편의상 delete 후 insert (가장 확실)
     await _supabase.from('hr_salary').delete().eq('emp_id', currentEmpId).eq('year_month', month);
     await _supabase.from('hr_salary').insert(payload);
-    
     showAlert("급여가 확정되었습니다."); loadSalaryData();
 }
 
-// 6. 근태 (휴가)
+// 근태 로드
 async function loadLeave() {
-    // 1) 자동 발생 (입사일 기준)
     let generated = 0;
     const { data: emp } = await _supabase.from('ref_employees').select('hire_date').eq('emp_id', currentEmpId).single();
     if(emp && emp.hire_date) {
         const join = new Date(emp.hire_date);
         const now = new Date();
         const diffY = now.getFullYear() - join.getFullYear();
-        if(diffY < 1) generated = (now.getMonth() - join.getMonth()); // 1년 미만
-        else generated = 15; // 1년 이상 (단순화)
+        if(diffY < 1) generated = (now.getMonth() - join.getMonth()); 
+        else generated = 15; 
     }
-    
-    // 2) 조정 내역
     let adjusted = 0;
     const { data: adjs } = await _supabase.from('hr_leave_adj').select('*').eq('emp_id', currentEmpId);
     if(adjs) adjs.forEach(a => { if(a.adj_type==='지급') adjusted+=Number(a.days); else adjusted-=Number(a.days); });
-    
-    // 3) 사용 내역 (결재 완료된 건)
     let used = 0;
     const { data: apps } = await _supabase.from('ref_approval').select('amount').eq('drafter_id', currentEmpId).eq('doc_type', '휴가').eq('status', '완료');
     if(apps) apps.forEach(a => used+=Number(a.amount));
-    
     document.getElementById("displayLeaveRemain").innerText = (generated + adjusted - used) + "일";
 }
 
 async function saveLog() {
-    const type = document.getElementById("logType").value; // 지급/차감
+    const type = document.getElementById("logType").value; 
     const val = Number(document.getElementById("logValue").value);
     const reason = document.getElementById("logReason").value;
-    
     if(!val || !reason) return showAlert("일수와 사유를 입력하세요.");
-    
-    await _supabase.from('hr_leave_adj').insert({
-        emp_id: currentEmpId,
-        adj_type: type,
-        days: val,
-        reason: reason
-    });
-    showAlert("반영되었습니다.");
-    document.getElementById("logValue").value = "";
-    document.getElementById("logReason").value = "";
-    loadLeave();
+    await _supabase.from('hr_leave_adj').insert({ emp_id: currentEmpId, adj_type: type, days: val, reason: reason });
+    showAlert("반영되었습니다."); document.getElementById("logValue").value = ""; document.getElementById("logReason").value = ""; loadLeave();
 }
-  // [수정된 파일 업로드 함수]
-async function uploadContract() {
-    const fileInput = document.getElementById("contractFile");
-    if (fileInput.files.length === 0) return showAlert("파일을 선택해주세요.");
 
-    const file = fileInput.files[0];
-    
-    // 파일명 생성: 사번_계약서_타임스탬프 (중복/한글깨짐 방지)
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${currentEmpId}_contract_${Date.now()}.${fileExt}`;
-    
-    // 1. 스토리지(contracts 버킷)에 업로드
-    const { data, error } = await _supabase.storage
-        .from('contracts') // 아까 만든 버킷 이름
-        .upload(fileName, file, {
-            cacheControl: '3600',
-            upsert: true // 덮어쓰기 허용
-        });
-
-    if (error) {
-        console.error(error);
-        return showAlert("업로드 실패: " + error.message);
-    }
-
-    // 2. 업로드된 파일의 공개 URL 가져오기
-    const { data: { publicUrl } } = _supabase.storage
-        .from('contracts')
-        .getPublicUrl(fileName);
-
-    // 3. 직원 정보(DB)에 URL 업데이트
-    const { error: dbError } = await _supabase
-        .from('ref_employees')
-        .update({ contract_url: publicUrl })
-        .eq('emp_id', currentEmpId);
-
-    if (dbError) {
-        return showAlert("DB 저장 실패: " + dbError.message);
-    }
-
-    showAlert("계약서가 성공적으로 등록되었습니다.");
-    
-    // 화면 갱신 (링크 표시)
-    document.getElementById("contractView").innerHTML = 
-        `<a href="${publicUrl}" target="_blank" class="btn btn-sm btn-info w-100 text-white">📄 계약서 보기</a>`;
-    document.getElementById("contractUrlInput").value = publicUrl; // URL 입력칸에도 채움
-    
-    loadList(); // 전체 목록 갱신
+// 관리자용 증명서 발급
+function openAdminCertModal() {
+    document.getElementById("adminCertPurpose").value = "";
+    adminCertModal.show();
+}
+async function reqIssueCert() { // PDF 생성 로직 (jsPDF 활용 예시) -> 실제론 마이페이지 로직과 유사하게 인쇄창 띄우거나 PDF 라이브러리 사용
+    showAlert("현재 인쇄 미리보기 기능을 준비 중입니다. (마이페이지 기능을 활용하세요)");
+    // 실제 구현 시: printDocument(data) 함수 등을 재활용하여 인쇄창 띄우면 됩니다.
+    adminCertModal.hide();
 }
 </script>
+
+<input type="hidden" id="hiddenContractUrl">
 </body>
 </html>
