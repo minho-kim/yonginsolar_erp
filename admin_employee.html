@@ -412,6 +412,7 @@ async function openDetail(u) {
 
 // [핵심] 파일 업로드 함수 (Supabase Storage)
 // [수정] 모달 겹침 방지 + DB 저장 로직 강화// [수정] 기존 파일 삭제 후 업로드 (용량 절약)
+// [수정] 알림창을 모달로 변경 + 로딩창 겹침 버그 해결
 async function uploadContract() {
     const fileInput = document.getElementById("contractFile");
     if (fileInput.files.length === 0) return showAlert("파일을 선택해주세요.");
@@ -420,11 +421,10 @@ async function uploadContract() {
     const fileExt = file.name.split('.').pop();
     const fileName = `${currentEmpId}_contract_${Date.now()}.${fileExt}`;
     
-    showLoading(); 
+    showLoading(); // 로딩 시작
 
     try {
-        // 1. [신규 로직] 기존에 등록된 파일이 있다면 삭제
-        // DB에서 현재 저장된 경로를 먼저 확인
+        // 1. 기존 파일 삭제 (중복 방지)
         const { data: emp } = await _supabase
             .from('ref_employees')
             .select('contract_url')
@@ -432,12 +432,10 @@ async function uploadContract() {
             .single();
 
         if (emp && emp.contract_url && !emp.contract_url.startsWith('http')) {
-            // 기존 파일이 있고, 보안 경로(파일명)라면 삭제 시도
             await _supabase.storage.from('contracts').remove([emp.contract_url]);
-            console.log("기존 파일 삭제 완료:", emp.contract_url);
         }
 
-        // 2. 새 파일 스토리지 업로드
+        // 2. 파일 업로드
         const { data, error } = await _supabase.storage
             .from('contracts')
             .upload(fileName, file, { upsert: true });
@@ -454,13 +452,15 @@ async function uploadContract() {
 
         if (dbError) throw new Error("DB 저장 실패: " + dbError.message);
 
+        // 4. [핵심] 로딩창 끄기
         hideLoading();
-        
-        // 4. 화면 갱신 (딜레이 후)
+
+        // 5. [핵심] 0.5초 뒤에 성공 모달 띄우기 (로딩창이 완전히 사라질 시간 확보)
         setTimeout(async () => {
-            alert("계약서가 등록되었습니다.");
+            // alert() 대신 예쁜 모달(showAlert) 사용
+            showAlert("계약서가 등록되었습니다."); 
             
-            // 바로보기 버튼 갱신
+            // UI 갱신 (버튼 만들기)
             const { data: signedData } = await _supabase.storage
                 .from('contracts')
                 .createSignedUrl(filePath, 3600);
@@ -471,12 +471,14 @@ async function uploadContract() {
                 document.getElementById("hiddenContractUrl").value = filePath;
                 fileInput.value = "";
             }
-            loadList();
-        }, 300);
+            loadList(); // 목록 갱신
+        }, 500); // 0.5초 딜레이
 
     } catch (err) {
         hideLoading();
-        setTimeout(() => alert("오류 발생: " + err.message), 300);
+        // 에러 메시지도 0.5초 뒤에 모달로 표시
+        setTimeout(() => showAlert("오류 발생: " + err.message), 500);
+        console.error(err);
     }
 }
 
