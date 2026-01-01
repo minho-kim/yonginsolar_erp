@@ -311,21 +311,20 @@ async function loadCompanyInfo() {
 }
 
 // [수정] 내 정보 로드 (계약서 보안 링크 생성 로직 추가)
+// [수정] 마이페이지 프로필 로드 (계약서 버튼 활성화 로직 포함)
 async function loadProfile() {
     const { data, error } = await _supabase.from('ref_employees').select('*').eq('emp_id', myInfo.emp_id).single();
     if(error) return;
     
-    // 최신 정보 갱신
     myInfo = data; 
     localStorage.setItem('erp_user', JSON.stringify(data)); 
 
-    // 1. 기본 정보 표시
+    // 기본 정보 표시
     document.getElementById("dspName").innerText = data.emp_name;
     document.getElementById("dspRank").innerText = data.position;
     document.getElementById("dspDept").innerText = data.department;
     document.getElementById("dspJoin").innerText = data.hire_date || '-';
     
-    // 근속기간 계산
     if(data.hire_date) {
         const join = new Date(data.hire_date);
         const diff = new Date() - join;
@@ -336,46 +335,44 @@ async function loadProfile() {
         myInfo.tenureStr = `${data.hire_date}~현재 (${years}년 ${months}개월 ${days}일)`;
     }
 
-    // 입력폼 채우기
     document.getElementById("myBank").value = data.bank_name || "";
     document.getElementById("myAccount").value = data.account_number || "";
     document.getElementById("myAddress").value = data.address || "";
     document.getElementById("myPhone").value = data.phone || "";
 
-    // 2. [보안 핵심] 계약서 버튼 활성화 로직
+    // [핵심] 계약서 버튼 제어 로직
     const btn = document.getElementById("btnContract");
     
-    if(data.contract_url) {
-        // (A) 예전 방식(http)인지, (B) 보안 경로인지 확인
-        let finalUrl = data.contract_url;
-        
-        if (!data.contract_url.startsWith('http')) {
-            // 보안 파일 경로라면 -> Signed URL 발급 요청
+    if (data.contract_url) {
+        // 계약서 경로가 있음 -> 보안 링크 생성 시도
+        let finalUrl = null;
+
+        if (data.contract_url.startsWith('http')) {
+            // 구버전(Public) 링크인 경우
+            finalUrl = data.contract_url;
+        } else {
+            // 신버전(Private) 경로인 경우 -> Signed URL 발급
             const { data: signedData, error: signError } = await _supabase.storage
                 .from('contracts')
                 .createSignedUrl(data.contract_url, 3600); // 1시간 유효
             
-            if (signedData) {
-                finalUrl = signedData.signedUrl;
-            } else {
-                console.error("계약서 링크 생성 실패:", signError);
-                finalUrl = null; // 실패 시 링크 없음 처리
-            }
+            if (signedData) finalUrl = signedData.signedUrl;
         }
 
+        // 링크가 유효하면 버튼 활성화
         if (finalUrl) {
             btn.disabled = false;
-            btn.className = "btn btn-outline-primary"; // 활성화 스타일
-            btn.innerText = "📄 계약서 보기";
+            btn.className = "btn btn-outline-primary fw-bold"; // 파란색 테두리 스타일
+            btn.innerHTML = "📄 계약서 보기"; // 텍스트 변경
             btn.onclick = () => window.open(finalUrl, '_blank');
         } else {
             btn.disabled = true;
             btn.innerText = "파일 로드 실패";
         }
     } else {
-        // 계약서가 없는 경우
+        // 계약서가 없음
         btn.disabled = true;
-        btn.className = "btn btn-secondary";
+        btn.className = "btn btn-secondary"; // 회색 스타일
         btn.innerText = "등록된 계약서 없음";
     }
 }
