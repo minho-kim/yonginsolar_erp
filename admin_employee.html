@@ -332,27 +332,61 @@ async function runInvite() {
 }
 
 // 4. 직원 상세
-function openDetail(u) {
-    currentEmpId = u.emp_id; currentEmpName = u.emp_name;
+// [함수] 직원 상세 정보 모달 열기 (보안 스토리지 적용됨)
+async function openDetail(u) {
+    // 1. 전역 변수 설정 (현재 선택된 직원)
+    currentEmpId = u.emp_id; 
+    currentEmpName = u.emp_name;
+
+    // 2. 기본 정보 UI 세팅
     document.getElementById("detailName").innerText = u.emp_name;
     document.getElementById("detailId").innerText = u.emp_id;
-    
     document.getElementById("editSalary").value = u.base_salary || 0;
     document.getElementById("salaryApplyDate").valueAsDate = new Date(); 
     
-    // 계약서 파일 삭제를 위해 URL을 hidden input에 저장
-    document.getElementById("hiddenContractUrl").value = u.contract_url || "";
+    // 삭제 시 파일 경로 참조를 위해 hidden input에 저장
+    document.getElementById("hiddenContractUrl").value = u.contract_url || ""; 
     
+    // 3. [보안 핵심] 계약서 보기 로직 (Signed URL 생성)
     const viewDiv = document.getElementById("contractView");
-    if(u.contract_url) viewDiv.innerHTML = `<a href="${u.contract_url}" target="_blank" class="btn btn-sm btn-info w-100 text-white">📄 계약서 보기</a>`;
-    else viewDiv.innerHTML = `<span class="text-muted small">미등록</span>`;
+    viewDiv.innerHTML = '<span class="spinner-border spinner-border-sm text-secondary"></span> 로딩 중...'; // 로딩 표시
 
-    // 퇴사자 처리
+    if (u.contract_url) {
+        // (A) 예전 방식(http로 시작)인지, (B) 새 보안 방식(파일경로)인지 확인
+        if (u.contract_url.startsWith('http')) {
+            // 구버전 데이터 (버킷이 Private이면 안 열릴 수 있음)
+            viewDiv.innerHTML = `<span class="text-danger small">⚠️ 이전 보안 설정 파일입니다. 다시 업로드해주세요.</span>`;
+        } else {
+            // 신버전 데이터 -> 슈퍼베이스에 '임시 접근 권한' 요청
+            try {
+                const { data, error } = await _supabase.storage
+                    .from('contracts')
+                    .createSignedUrl(u.contract_url, 3600); // 3600초(1시간) 동안 유효
+
+                if (error || !data) {
+                    console.error("Link Error:", error);
+                    viewDiv.innerHTML = `<span class="text-danger small">파일 로드 실패</span>`;
+                } else {
+                    viewDiv.innerHTML = `<a href="${data.signedUrl}" target="_blank" class="btn btn-sm btn-info w-100 text-white">📄 계약서 보기 (보안)</a>`;
+                }
+            } catch (e) {
+                viewDiv.innerHTML = `<span class="text-danger small">오류 발생</span>`;
+            }
+        }
+    } else {
+        viewDiv.innerHTML = `<span class="text-muted small">미등록 상태</span>`;
+    }
+
+    // 4. 퇴사자/재직자 UI 분기 처리
     const area = document.getElementById("btnResignArea");
-    if(u.resign_date) {
+    const btnSave = document.getElementById("btnSaveInfo");
+
+    if (u.resign_date) {
+        // [퇴사자 모드] : 수정 불가, 삭제/취소 가능
         document.getElementById("editSalary").disabled = true;
         document.getElementById("salaryApplyDate").disabled = true;
-        document.getElementById("btnSaveInfo").classList.add("d-none");
+        document.getElementById("contractFile").disabled = true; // 업로드 막기
+        if(btnSave) btnSave.classList.add("d-none");
         
         area.innerHTML = `
             <button class="btn btn-sm btn-outline-primary" onclick="openAdminCertModal()">📄 증명서 발급</button>
@@ -360,10 +394,15 @@ function openDetail(u) {
             <button class="btn btn-sm btn-danger ms-2" onclick="reqDeletePermanent()">🗑️ 완전 삭제</button>
         `;
     } else {
+        // [재직자 모드] : 수정 가능, 퇴사처리 가능
         document.getElementById("editSalary").disabled = false;
         document.getElementById("salaryApplyDate").disabled = false;
-        document.getElementById("btnSaveInfo").classList.remove("d-none");
+        document.getElementById("contractFile").disabled = false;
+        if(btnSave) btnSave.classList.remove("d-none");
+
         area.innerHTML = `<button class="btn btn-sm btn-outline-danger" onclick="doResign()">⛔ 퇴사 처리</button>`;
+        
+        // 재직자만 급여/휴가 탭 데이터 로드
         loadSalaryData(); 
         loadLeave(); 
     }
@@ -378,29 +417,43 @@ async function uploadContract() {
 
     const file = fileInput.files[0];
     const fileExt = file.name.split('.').pop();
+    // 한글 파일명 깨짐 방지를 위해 영어/숫자로 변환 권장
     const fileName = `${currentEmpId}_contract_${Date.now()}.${fileExt}`;
     
     showLoading();
-    // Storage에 업로드
-    const { data, error } = await _supabase.storage.from('contracts').upload(fileName, file, { upsert: true });
+
+    // 1. 스토리지 업로드 (기존과 동일)
+    const { data, error } = await _supabase.storage
+        .from('contracts')
+        .upload(fileName, file, { upsert: true });
 
     if (error) {
         hideLoading();
         return showAlert("업로드 실패: " + error.message);
     }
 
-    // Public URL 가져오기
-    const { data: { publicUrl } } = _supabase.storage.from('contracts').getPublicUrl(fileName);
+    // 2. [중요 변경] PublicURL이 아니라 '파일 경로(path)'를 저장합니다.
+    // data.path 예시: "2024001_contract_12345.pdf"
+    const filePath = data.path; 
 
-    // DB 업데이트
-    await _supabase.from('ref_employees').update({ contract_url: publicUrl }).eq('emp_id', currentEmpId);
+    // 3. DB에 경로 저장
+    await _supabase.from('ref_employees')
+        .update({ contract_url: filePath }) // 컬럼명은 url이지만 실제론 path를 저장
+        .eq('emp_id', currentEmpId);
     
     hideLoading();
-    showAlert("계약서가 등록되었습니다.");
+    showAlert("보안 저장소에 등록되었습니다.");
     
-    // 화면 갱신
-    document.getElementById("hiddenContractUrl").value = publicUrl;
-    document.getElementById("contractView").innerHTML = `<a href="${publicUrl}" target="_blank" class="btn btn-sm btn-info w-100 text-white">📄 계약서 보기</a>`;
+    // 4. 화면 갱신 (바로보기 버튼 생성)
+    // 업로드 직후에는 다운로드 버튼을 만들기 위해 SignedUrl을 한 번 받아옵니다.
+    const { data: signedData } = await _supabase.storage
+        .from('contracts')
+        .createSignedUrl(filePath, 3600); // 1시간(3600초) 유효
+
+    if (signedData) {
+        document.getElementById("contractView").innerHTML = 
+            `<a href="${signedData.signedUrl}" target="_blank" class="btn btn-sm btn-info w-100 text-white">📄 계약서 보기 (보안)</a>`;
+    }
     loadList();
 }
 
@@ -410,19 +463,17 @@ async function reqDeletePermanent() {
         showLoading();
         detailModal.hide();
         
-        // 1. 파일 삭제 시도
-        const contractUrl = document.getElementById("hiddenContractUrl").value;
-        if (contractUrl) {
-            try {
-                // URL에서 경로 추출 (contracts/ 이후 부분)
-                const path = contractUrl.split('/contracts/')[1]; 
-                if (path) {
-                    await _supabase.storage.from('contracts').remove([path]);
-                }
-            } catch (e) { console.error("파일 삭제 중 오류:", e); }
+        // 1. 파일 삭제
+        const filePath = document.getElementById("hiddenContractUrl").value;
+        if (filePath && !filePath.startsWith('http')) { // 경로가 있을 때만
+            const { error: storageError } = await _supabase.storage
+                .from('contracts')
+                .remove([filePath]);
+            
+            if (storageError) console.error("스토리지 삭제 실패:", storageError);
         }
 
-        // 2. DB 데이터 삭제 (순차적)
+        // 2. DB 삭제 (기존 동일)
         await _supabase.from('hr_salary').delete().eq('emp_id', currentEmpId);
         await _supabase.from('hr_leave_adj').delete().eq('emp_id', currentEmpId);
         await _supabase.from('hr_salary_contracts').delete().eq('emp_id', currentEmpId);
