@@ -14,8 +14,11 @@
     .hidden { display: none !important; }
     .profile-card { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; align-items: center; }
     .profile-icon { width: 70px; height: 70px; background: #e9ecef; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; margin-right: 20px; }
-    .leave-card { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-    .leave-num { font-size: 1.5rem; font-weight: bold; color: #0d6efd; }
+    
+    /* [수정] 연차 카드 4칸으로 변경 (당겨쓰기 포함) */
+    .leave-card { background: white; border-radius: 12px; padding: 15px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); height: 100%; }
+    .leave-num { font-size: 1.4rem; font-weight: bold; color: #0d6efd; }
+    
     .nav-tabs .nav-link { color: #495057; cursor: pointer; }
     .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; }
     .tab-content { background: white; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 10px 10px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
@@ -43,10 +46,11 @@
     </div>
   </div>
 
-  <div class="row mb-4">
-    <div class="col-4"><div class="leave-card"><div class="text-muted small">발생 연차</div><div class="leave-num text-dark" id="lvTotal">0</div></div></div>
-    <div class="col-4"><div class="leave-card"><div class="text-muted small">사용 연차</div><div class="leave-num text-danger" id="lvUsed">0</div></div></div>
-    <div class="col-4"><div class="leave-card"><div class="text-muted small">잔여 연차</div><div class="leave-num text-primary" id="lvRemain">0</div></div></div>
+  <div class="row mb-4 g-2">
+    <div class="col-3"><div class="leave-card"><div class="text-muted small">발생 연차</div><div class="leave-num text-dark" id="lvTotal">0</div></div></div>
+    <div class="col-3"><div class="leave-card"><div class="text-muted small">당겨쓰기</div><div class="leave-num text-warning" id="lvAdvance">0</div></div></div>
+    <div class="col-3"><div class="leave-card"><div class="text-muted small">사용 연차</div><div class="leave-num text-danger" id="lvUsed">0</div></div></div>
+    <div class="col-3"><div class="leave-card bg-primary bg-opacity-10 border border-primary"><div class="text-primary small fw-bold">잔여 연차</div><div class="leave-num text-primary" id="lvRemain">0</div></div></div>
   </div>
 
   <ul class="nav nav-tabs" id="myTab" role="tablist">
@@ -182,6 +186,7 @@ async function loadCompanyInfo() {
         data.forEach(item => { companyInfo[item.key] = item.value; });
     }
     
+    // 이사장 자동 조회
     const { data: boss } = await _supabase.from('ref_employees').select('emp_name').eq('position', '이사장').single();
     if(boss) {
         companyInfo.chairman_name = boss.emp_name; 
@@ -237,29 +242,36 @@ async function updateInfo() {
 }
 
 async function calculateLeave() {
+    // 1. 발생 연차
     let generatedLeave = 0;
     if (myInfo.hire_date) {
         const join = new Date(myInfo.hire_date);
         const now = new Date();
         let diffMonths = (now.getFullYear() - join.getFullYear()) * 12 + (now.getMonth() - join.getMonth());
-        if (now.getDate() < join.getDate()) {
-            diffMonths--;
-        }
-        if (diffMonths < 12) {
-            generatedLeave = Math.max(0, diffMonths); 
-        } else {
+        if (now.getDate() < join.getDate()) diffMonths--;
+        if (diffMonths < 12) generatedLeave = Math.max(0, diffMonths); 
+        else {
             const years = Math.floor(diffMonths / 12);
             generatedLeave = 15 + Math.floor((years - 1) / 2);
         }
     }
 
+    // 2. DB에서 사용/당겨쓰기 데이터 가져오기
     let usedLeave = 0;
-    const { data } = await _supabase.from('hr_leave').select('used_days').eq('emp_id', myInfo.emp_id).single();
-    if (data) usedLeave = Number(data.used_days);
+    let advanceLeave = 0; // [추가]
+    
+    // select used_days, advance_days ...
+    const { data } = await _supabase.from('hr_leave').select('used_days, advance_days').eq('emp_id', myInfo.emp_id).single();
+    if (data) {
+        usedLeave = Number(data.used_days || 0);
+        advanceLeave = Number(data.advance_days || 0); // [추가] 당겨쓴 연차
+    }
 
-    const remainLeave = generatedLeave - usedLeave;
+    // 3. 최종 잔여 연차 계산: (발생 + 당겨쓰기) - 사용
+    const remainLeave = (generatedLeave + advanceLeave) - usedLeave;
 
     document.getElementById("lvTotal").innerText = generatedLeave;
+    document.getElementById("lvAdvance").innerText = advanceLeave; // 화면 표시
     document.getElementById("lvUsed").innerText = usedLeave;
     document.getElementById("lvRemain").innerText = remainLeave;
 }
@@ -274,7 +286,6 @@ async function runCertIssue() {
     if(!purpose) return alert("용도를 입력해주세요.");
     purposeModal.hide();
     
-    // [로그 기록]
     const { error } = await _supabase.from('log_cert').insert({
         emp_id: myInfo.emp_id,
         emp_name: myInfo.emp_name,
@@ -282,10 +293,7 @@ async function runCertIssue() {
         purpose: purpose
     });
 
-    if(error) {
-        alert("시스템 기록 중 오류가 발생했습니다: " + error.message);
-        // 기록 실패 시 인쇄를 막고 싶으면 return; 하지만 보통은 진행시킵니다.
-    }
+    if(error) console.error("발급 기록 실패:", error);
 
     let birthStr = "-";
     if (myInfo.rrn) {
@@ -328,123 +336,44 @@ function printDocument(type, data) {
     let html = `
     <html><head><title>인쇄</title>
     <style>
-      /* [핵심 1] A4 사이즈 고정 및 불필요한 여백 제거 */
-      @page { 
-        size: A4 portrait; /* 세로 방향 명시 */
-        margin: 0; 
-      }
-      
+      @page { size: A4 portrait; margin: 0; }
       @media print { 
         html, body { 
-          width: 210mm; 
-          height: 297mm; 
-          margin: 0; 
-          padding: 0; 
-          overflow: hidden; /* [핵심 2] 1페이지 넘어가면 강제로 자름 */
-          -webkit-print-color-adjust: exact; 
-          print-color-adjust: exact; 
+          width: 210mm; height: 297mm; margin: 0; padding: 0; overflow: hidden;
+          -webkit-print-color-adjust: exact; print-color-adjust: exact; 
         }
       }
-      
-      /* 화면에서 볼 때 스타일 (인쇄랑 비슷하게) */
-      body { 
-        font-family: "Malgun Gothic", serif; 
-        margin: 0; 
-        padding: 0;
-        box-sizing: border-box;
-      }
-
-      /* [핵심 3] 실제 내용이 들어갈 종이 영역 (여백 20mm 확보) */
-      .page-wrap {
-        width: 210mm;
-        height: 296mm; /* 297mm에서 1mm 뺌 (안전빵) */
-        padding: 20mm;
-        box-sizing: border-box;
-        position: relative;
-      }
-
-      /* 테두리 컨테이너 */
-      .cert-container { 
-        width: 100%;
-        height: 100%;
-        border: 2px solid #333; /* 테두리 색상 진하게 */
-        padding: 20px;
-        text-align: center; 
-        position: relative; 
-        box-sizing: border-box;
-      }
-      
+      body { font-family: "Malgun Gothic", serif; margin: 0; padding: 0; box-sizing: border-box; }
+      .page-wrap { width: 210mm; height: 296mm; padding: 20mm; box-sizing: border-box; position: relative; }
+      .cert-container { width: 100%; height: 100%; border: 2px solid #333; padding: 20px; text-align: center; position: relative; box-sizing: border-box; }
       .top-logo { position: absolute; left: 20px; top: 20px; height: 45px; z-index: 10; } 
-
       h2 { font-size: 32px; text-decoration: underline; margin: 60px 0 40px 0; font-weight: bold; }
-      
       .doc-num { text-align: right; font-size: 13px; margin-bottom: 20px; }
-      
       .tbl-title { text-align: left; font-weight: bold; font-size: 16px; margin-top: 10px; margin-bottom: 5px; }
-      
       table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 15px; }
       th, td { border: 1px solid #000; padding: 10px; }
       th { background: #f9f9f9 !important; width: 110px; text-align: center; }
-      
       .footer { margin-top: 60px; font-size: 12px; line-height: 1.6; color: #555; }
-      
       .chairman-sign { font-size: 24px; font-weight: bold; margin-top: 50px; position: relative; display: inline-block; }
-      
       .seal-img { position: absolute; right: -50px; top: -20px; width: 80px; opacity: 0.8; z-index: 10; }
     </style>
-    </head><body>
-    
-    <div class="page-wrap">`;
+    </head><body><div class="page-wrap">`;
     
     if(type === 'cert') {
         html += `
         <div class="cert-container">
             ${data.logo ? `<img src="${data.logo}" class="top-logo">` : ''}
-            
             <div style="text-align:right; font-size:12px; margin-top:30px; margin-bottom:5px;">www.yonginsolar.kr</div>
-            
             <h2>재 직 증 명 서</h2>
-            
             <div class="doc-num">문서번호: 인사-${new Date().getFullYear()}-001</div>
-
             <div class="tbl-title">1. 인적사항</div>
-            <table>
-                <tr>
-                    <th>성 명</th><td>${data.name}</td>
-                    <th>생년월일</th><td>${data.birth}</td>
-                </tr>
-                <tr>
-                    <th>소 속</th><td>${data.dept}</td>
-                    <th>직 위</th><td>${data.pos}</td>
-                </tr>
-                <tr>
-                    <th>주 소</th><td colspan="3">${data.address}</td>
-                </tr>
-            </table>
-
+            <table><tr><th>성 명</th><td>${data.name}</td><th>생년월일</th><td>${data.birth}</td></tr><tr><th>소 속</th><td>${data.dept}</td><th>직 위</th><td>${data.pos}</td></tr><tr><th>주 소</th><td colspan="3">${data.address}</td></tr></table>
             <div class="tbl-title">2. 재직사항</div>
-            <table>
-                <tr>
-                    <th>재직기간</th><td colspan="3">${data.tenure}</td>
-                </tr>
-                <tr>
-                    <th>용 도</th><td colspan="3">${data.purpose}</td>
-                </tr>
-            </table>
-
+            <table><tr><th>재직기간</th><td colspan="3">${data.tenure}</td></tr><tr><th>용 도</th><td colspan="3">${data.purpose}</td></tr></table>
             <div style="margin-top: 50px; font-size: 18px;">위와 같이 재직하고 있음을 증명합니다.</div>
-            
             <div style="margin-top: 30px; font-size: 18px;">${data.today}</div>
-            
-            <div class="chairman-sign">
-                ${data.compName} 이사장 ${data.chairman}
-                ${data.seal ? `<img src="${data.seal}" class="seal-img">` : ''}
-            </div>
-
-            <div class="footer">
-                ${data.compAddr} ${data.compName}<br>
-                문의: ${data.contact}
-            </div>
+            <div class="chairman-sign">${data.compName} 이사장 ${data.chairman}${data.seal ? `<img src="${data.seal}" class="seal-img">` : ''}</div>
+            <div class="footer">${data.compAddr} ${data.compName}<br>문의: ${data.contact}</div>
         </div>`;
     } else if(type === 'salary') {
         html += `
@@ -459,8 +388,7 @@ function printDocument(type, data) {
                     </tr>
                 </table>
                 <div style="margin-top:30px; text-align:center;">귀하의 노고에 감사드립니다.</div>
-            </div>
-        `;
+            </div>`;
     }
     
     html += `</div><script>window.print();<\/script></body></html>`;
