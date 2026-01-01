@@ -44,9 +44,9 @@
   </div>
 
   <div class="row mb-4">
-    <div class="col-4"><div class="leave-card"><div class="text-muted small">총 연차</div><div class="leave-num text-dark" id="lvTotal">0</div></div></div>
-    <div class="col-4"><div class="leave-card"><div class="text-muted small">사용</div><div class="leave-num text-danger" id="lvUsed">0</div></div></div>
-    <div class="col-4"><div class="leave-card"><div class="text-muted small">잔여</div><div class="leave-num text-primary" id="lvRemain">0</div></div></div>
+    <div class="col-4"><div class="leave-card"><div class="text-muted small">발생 연차</div><div class="leave-num text-dark" id="lvTotal">0</div></div></div>
+    <div class="col-4"><div class="leave-card"><div class="text-muted small">사용 연차</div><div class="leave-num text-danger" id="lvUsed">0</div></div></div>
+    <div class="col-4"><div class="leave-card"><div class="text-muted small">잔여 연차</div><div class="leave-num text-primary" id="lvRemain">0</div></div></div>
   </div>
 
   <ul class="nav nav-tabs" id="myTab" role="tablist">
@@ -59,7 +59,7 @@
   <div class="tab-content">
     
     <div class="tab-pane fade show active" id="tabInfo">
-      <div class="alert alert-light border small mb-3">ℹ️ 성명, 직급, 입사일 등 핵심 정보는 관리자만 수정 가능합니다.</div>
+      <div class="alert alert-light border small mb-3">ℹ️ 성명, 직급, 입사일, 주민번호 등 핵심 정보는 관리자만 수정 가능합니다.</div>
       <div class="row mb-3">
         <div class="col-md-6 mb-3"><label class="small text-muted">급여 계좌</label><input type="text" class="form-control" id="myBank"></div>
         <div class="col-md-6 mb-3"><label class="small text-muted">계좌번호</label><input type="text" class="form-control" id="myAccount"></div>
@@ -78,7 +78,7 @@
         <button class="btn btn-sm btn-outline-dark hidden" id="btnPrintSalary" onclick="printSalaryPopup()">🖨️ 명세서 인쇄</button>
       </div>
       <div id="salaryResult" class="hidden">
-        <div class="alert alert-warning small py-2">🔒 <strong>보안 주의:</strong> 금액 부분을 마우스로 올리거나 클릭하면 블라인드가 해제됩니다.</div>
+        <div class="alert alert-warning small py-2">🔒 <strong>보안 주의:</strong> 금액 부분에 마우스를 올리면 블라인드가 해제됩니다.</div>
         <div class="card p-3 shadow-sm border-0">
           <h5 class="text-center fw-bold mb-3"><span id="sl_ym"></span> 급여명세서</h5>
           <div class="row g-0 border">
@@ -117,13 +117,13 @@
     <div class="tab-pane fade" id="tabCert">
       <div class="card p-3 border mb-3">
         <div class="d-flex justify-content-between align-items-center">
-          <div><h6 class="fw-bold mb-1">📄 재직증명서</h6><small class="text-muted">은행/관공서 제출용 (인쇄)</small></div>
+          <div><h6 class="fw-bold mb-1">📄 재직증명서</h6><small class="text-muted">은행/관공서 제출용</small></div>
           <button class="btn btn-outline-primary" id="btnCert" onclick="openCertModal()">발급 신청</button>
         </div>
       </div>
       <div class="card p-3 border">
         <div class="d-flex justify-content-between align-items-center">
-          <div><h6 class="fw-bold mb-1">🤝 근로계약서</h6><small class="text-muted">서명 완료된 계약서 (PDF)</small></div>
+          <div><h6 class="fw-bold mb-1">🤝 근로계약서</h6><small class="text-muted">서명 완료된 계약서</small></div>
           <button class="btn btn-secondary" id="btnContract" onclick="viewContract()" disabled>등록된 계약서 없음</button>
         </div>
       </div>
@@ -140,11 +140,11 @@
     <div class="modal-content">
       <div class="modal-header"><h5 class="modal-title fw-bold">발급 용도</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
-        <label class="form-label small text-muted">용도 입력</label>
+        <label class="form-label small text-muted">제출처 및 용도</label>
         <input type="text" id="certPurposeInput" class="form-control" placeholder="예: 금융기관 제출용">
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-primary btn-sm" onclick="runCertIssue()">발급(인쇄)</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="runCertIssue()">인쇄하기</button>
       </div>
     </div>
   </div>
@@ -152,45 +152,46 @@
 
 <script>
 // ============================================================
-// [설정] 수퍼베이스 연결 (Index.html과 동일한 _supabase 사용)
+// [설정] 수퍼베이스 연결
 // ============================================================
 const SUPABASE_URL = 'https://ifdqlwxgqgsvnawmhlfc.supabase.co'; 
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmZHFsd3hncWdzdm5hd21obGZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxODQ3NDIsImV4cCI6MjA4Mjc2MDc0Mn0.UKUvMOl58KuDH24seC3oSgla7mK5lr-vXjqtpalnl6k';
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let myInfo = null;
+let companyInfo = {}; // 회사 정보 저장
 let currentSalaryData = null;
 let purposeModal;
 
 window.onload = async function() {
     purposeModal = new bootstrap.Modal(document.getElementById('certPurposeModal'));
-
-    // 1. 로그인 정보 확인
     const stored = localStorage.getItem('erp_user');
     if(!stored) { alert("로그인이 필요합니다."); location.href='index.html'; return; }
     myInfo = JSON.parse(stored);
 
-    // 2. 이번달 세팅
     const now = new Date();
-    document.getElementById("salaryMonth").value = now.toISOString().slice(0, 7); // YYYY-MM
+    document.getElementById("salaryMonth").value = now.toISOString().slice(0, 7); 
 
-    // 3. 데이터 로딩 (병렬 처리)
-    await Promise.all([
-        loadProfile(),
-        loadLeave(),
-        loadNotices()
-    ]);
+    await Promise.all([ loadProfile(), loadCompanyInfo(), loadNotices() ]);
+    // 연차 계산은 프로필 로드 후에 실행
+    calculateLeave();
 };
 
-// =========================================
-// [기능 1] 프로필 및 정보 수정
-// =========================================
+// 회사 정보 가져오기 (이사장, 직인 등)
+async function loadCompanyInfo() {
+    const { data } = await _supabase.from('ref_company_info').select('*');
+    if(data) {
+        data.forEach(item => { companyInfo[item.key] = item.value; });
+    }
+}
+
+// 프로필 및 정보 로드
 async function loadProfile() {
     const { data, error } = await _supabase.from('ref_employees').select('*').eq('emp_id', myInfo.emp_id).single();
-    if(error) return alert("정보 로딩 실패");
+    if(error) return;
     
-    myInfo = data; // 최신 정보로 갱신
-    localStorage.setItem('erp_user', JSON.stringify(data)); // 로컬스토리지도 갱신
+    myInfo = data; 
+    localStorage.setItem('erp_user', JSON.stringify(data)); 
 
     document.getElementById("dspName").innerText = data.emp_name;
     document.getElementById("dspRank").innerText = data.position;
@@ -203,7 +204,9 @@ async function loadProfile() {
         const diff = new Date() - join;
         const years = Math.floor(diff / (1000*60*60*24*365));
         const months = Math.floor((diff % (1000*60*60*24*365)) / (1000*60*60*24*30));
-        document.getElementById("dspTenure").innerText = `${years}년 ${months}월차`;
+        const days = Math.floor((diff % (1000*60*60*24*30)) / (1000*60*60*24));
+        document.getElementById("dspTenure").innerText = `${years}년 ${months}개월 ${days}일`;
+        myInfo.tenureStr = `${data.hire_date}~현재 (${years}년 ${months}개월 ${days}일)`; // 증명서용
     }
 
     document.getElementById("myBank").value = data.bank_name || "";
@@ -211,7 +214,6 @@ async function loadProfile() {
     document.getElementById("myAddress").value = data.address || "";
     document.getElementById("myPhone").value = data.phone || "";
 
-    // 계약서 버튼 (file_links 컬럼에 계약서 URL이 있다고 가정)
     if(data.contract_url) {
         const btn = document.getElementById("btnContract");
         btn.disabled = false;
@@ -223,92 +225,50 @@ async function loadProfile() {
 
 async function updateInfo() {
     if(!confirm("정보를 수정하시겠습니까?")) return;
-
     const updates = {
         bank_name: document.getElementById("myBank").value,
         account_number: document.getElementById("myAccount").value,
         address: document.getElementById("myAddress").value,
         phone: document.getElementById("myPhone").value
     };
-
     const { error } = await _supabase.from('ref_employees').update(updates).eq('emp_id', myInfo.emp_id);
-    
-    if(error) alert("수정 실패: " + error.message);
-    else alert("정보가 수정되었습니다.");
+    if(error) alert("수정 실패"); else alert("정보가 수정되었습니다.");
 }
 
-// =========================================
-// [기능 2] 연차 정보 (hr_leave)
-// =========================================
-async function loadLeave() {
-    const { data } = await _supabase.from('hr_leave').select('*').eq('emp_id', myInfo.emp_id).single();
-    if(data) {
-        const total = Number(data.remaining_days) + Number(data.used_days); // 총 연차 역산 (임시)
-        document.getElementById("lvTotal").innerText = total; // 혹은 별도 컬럼 생성 필요
-        document.getElementById("lvUsed").innerText = data.used_days;
-        document.getElementById("lvRemain").innerText = data.remaining_days;
-    }
-}
-
-// =========================================
-// [기능 3] 급여 명세서 조회 (hr_salary)
-// =========================================
-async function searchSalary() {
-    const ym = document.getElementById("salaryMonth").value;
-    if(!ym) return alert("월을 선택하세요.");
-
-    const { data, error } = await _supabase
-        .from('hr_salary')
-        .select('*')
-        .eq('emp_id', myInfo.emp_id)
-        .eq('year_month', ym)
-        .single();
-
-    const resArea = document.getElementById("salaryResult");
-    const btnPrint = document.getElementById("btnPrintSalary");
-
-    if(!data || error) {
-        alert("해당 월의 급여 내역이 없습니다.");
-        resArea.classList.add("hidden");
-        btnPrint.classList.add("hidden");
-        return;
+// [기능: 연차 자동 계산] 입사일 기준 1개월 = 1개
+async function calculateLeave() {
+    // 1. 발생 연차 계산 (입사일 기준)
+    let generatedLeave = 0;
+    if (myInfo.hire_date) {
+        const join = new Date(myInfo.hire_date);
+        const now = new Date();
+        // 개월 수 차이 계산
+        const months = (now.getFullYear() - join.getFullYear()) * 12 + (now.getMonth() - join.getMonth());
+        // 1년 미만: 1개월 개근 시 1일 (단순화하여 개월 수만큼 부여)
+        // 1년 이상: 15일 + @ (일단 1년차 15개 로직 적용)
+        if (months < 12) {
+            generatedLeave = months; 
+        } else {
+            // 2년마다 1일 추가 로직은 추후 구현, 일단 기본 15개 + 근속년수
+            const years = Math.floor(months / 12);
+            generatedLeave = 15 + Math.floor((years - 1) / 2);
+        }
     }
 
-    currentSalaryData = data;
-    resArea.classList.remove("hidden");
-    btnPrint.classList.remove("hidden");
-    
-    document.getElementById("sl_ym").innerText = ym;
-    
-    // 금액 바인딩 함수
-    const setVal = (id, val) => document.getElementById(id).innerText = Number(val).toLocaleString();
-    
-    setVal("sl_basic", data.pay_basic);
-    setVal("sl_meal", data.pay_meal);
-    setVal("sl_car", data.pay_car);
-    setVal("sl_child", data.pay_child);
-    setVal("sl_bonus", data.pay_bonus);
-    setVal("sl_p_total", data.pay_total);
-    
-    setVal("sl_pension", data.ded_pension);
-    setVal("sl_health", data.ded_health);
-    setVal("sl_care", data.ded_care);
-    setVal("sl_employ", data.ded_employ);
-    setVal("sl_income", data.ded_income);
-    setVal("sl_local", data.ded_local);
-    setVal("sl_d_total", data.ded_total);
-    
-    setVal("sl_net", data.net_pay);
+    // 2. 사용 연차 (hr_leave 테이블에서 가져옴)
+    let usedLeave = 0;
+    const { data } = await _supabase.from('hr_leave').select('used_days').eq('emp_id', myInfo.emp_id).single();
+    if (data) usedLeave = Number(data.used_days);
+
+    // 3. 잔여 연차
+    const remainLeave = generatedLeave - usedLeave;
+
+    document.getElementById("lvTotal").innerText = generatedLeave;
+    document.getElementById("lvUsed").innerText = usedLeave;
+    document.getElementById("lvRemain").innerText = remainLeave;
 }
 
-function printSalaryPopup() {
-    if(!currentSalaryData) return;
-    printDocument('salary', currentSalaryData);
-}
-
-// =========================================
-// [기능 4] 증명서 발급 (Client Side Print)
-// =========================================
+// [기능: 재직증명서 발급]
 function openCertModal() {
     document.getElementById('certPurposeInput').value = "";
     purposeModal.show();
@@ -317,88 +277,155 @@ function openCertModal() {
 function runCertIssue() {
     const purpose = document.getElementById('certPurposeInput').value;
     if(!purpose) return alert("용도를 입력해주세요.");
-    
     purposeModal.hide();
     
-    // 재직증명서 데이터 구성
+    // 생년월일 추출 (주민번호 앞 6자리 + 뒤 1자리로 성별/연대 유추 가능하지만 일단 앞 6자리 파싱)
+    let birthStr = "-";
+    if (myInfo.rrn) {
+        // 예: 840914-1...
+        const y = myInfo.rrn.substring(0,2);
+        const m = myInfo.rrn.substring(2,4);
+        const d = myInfo.rrn.substring(4,6);
+        // 1900년대인지 2000년대인지 구분 (뒷자리 첫글자로)
+        // 일단 단순하게 50보다 크면 1900, 아니면 2000으로 가정 (약식)
+        const prefix = Number(y) > 30 ? "19" : "20"; 
+        birthStr = `${prefix}${y}년 ${m}월 ${d}일`;
+    }
+
     const certData = {
         name: myInfo.emp_name,
+        birth: birthStr,
         dept: myInfo.department,
         pos: myInfo.position,
-        join: myInfo.hire_date,
         address: myInfo.address,
+        tenure: myInfo.tenureStr, // 위에서 계산한 문자열
         purpose: purpose,
-        today: new Date().toLocaleDateString()
+        today: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }),
+        chairman: companyInfo.chairman_name || "이사장",
+        compName: companyInfo.company_name,
+        compAddr: companyInfo.company_address,
+        contact: companyInfo.company_contact,
+        seal: companyInfo.seal_url
     };
     
     printDocument('cert', certData);
 }
 
-// =========================================
-// [기능 5] 공지사항 (ref_notice)
-// =========================================
-async function loadNotices() {
-    const el = document.getElementById("noticeList");
-    // 최근 5개만 조회
-    const { data } = await _supabase.from('ref_notice').select('*').order('created_at', {ascending: false}).limit(5);
-    
-    el.innerHTML = "";
-    if(!data || data.length === 0) {
-        el.innerHTML = '<div class="text-center p-3 text-muted">등록된 공지사항이 없습니다.</div>';
-        return;
-    }
-
-    data.forEach(n => {
-        const div = document.createElement("div");
-        div.className = "list-group-item";
-        div.innerHTML = `
-            <div class="d-flex justify-content-between">
-                <h6 class="mb-1 fw-bold">${n.title}</h6>
-                <small class="text-muted">${new Date(n.created_at).toLocaleDateString()}</small>
-            </div>
-            <p class="mb-1 small text-dark">${n.content}</p>
-            <small class="text-secondary">작성자: ${n.writer || '관리자'}</small>
-        `;
-        el.appendChild(div);
-    });
-}
-
-// =========================================
-// [공통] 인쇄 팝업 생성기 (명세서 & 증명서)
-// =========================================
+// 인쇄 팝업
 function printDocument(type, data) {
-    const win = window.open('', '', 'width=800,height=900');
-    let html = `<html><head><title>인쇄 미리보기</title><style>body{font-family:"Malgun Gothic",serif;padding:40px;text-align:center;} table{width:100%;border-collapse:collapse;margin:20px 0;} th,td{border:1px solid #000;padding:8px;} th{background:#eee;} .sign{margin-top:50px;font-size:20px;font-weight:bold;}</style></head><body>`;
+    const win = window.open('', '', 'width=900,height=1100');
+    let html = `
+    <html><head><title>인쇄</title>
+    <style>
+      body{ font-family:"Malgun Gothic", serif; padding: 40px; }
+      .cert-container { border: 2px solid #fff; padding: 20px; text-align: center; }
+      h1 { font-size: 32px; font-weight: bold; margin-bottom: 10px; }
+      h2 { font-size: 24px; text-decoration: underline; margin: 40px 0; }
+      .tbl-title { text-align: left; font-weight: bold; font-size: 16px; margin-top: 20px; margin-bottom: 5px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 14px; }
+      th, td { border: 1px solid #000; padding: 10px; }
+      th { background: #f9f9f9; width: 100px; text-align: center; }
+      .footer { margin-top: 60px; font-size: 14px; line-height: 1.6; }
+      .chairman-sign { font-size: 24px; font-weight: bold; margin-top: 40px; position: relative; display: inline-block; }
+      .seal-img { position: absolute; right: -50px; top: -20px; width: 80px; opacity: 0.8; }
+      @media print { .no-print { display: none; } }
+    </style>
+    </head><body>`;
     
-    if(type === 'salary') {
+    if(type === 'cert') {
         html += `
-            <h2>${data.year_month} 급여명세서</h2>
+        <div class="cert-container">
+            <div style="font-size:14px; text-align:left; color:#555;">${data.compName}<br>Yongin Solar Power Cooperative</div>
+            
+            <div class="tbl-title">1. 인적사항</div>
+            <div style="text-align:right; font-size:12px; margin-bottom:5px;">www.yonginsolar.kr</div>
+            <h2>재 직 증 명 서</h2>
+            <div style="text-align:right; font-size:12px; margin-bottom:10px;">문서번호: 인사-${new Date().getFullYear()}-001</div>
+            
             <table>
-                <tr><th>성명</th><td>${myInfo.emp_name}</td><th>부서</th><td>${myInfo.department}</td></tr>
-                <tr><th>지급총액</th><td>${Number(data.pay_total).toLocaleString()}</td><th>공제총액</th><td>${Number(data.ded_total).toLocaleString()}</td></tr>
-                <tr><th colspan="4" style="font-size:18px;">실수령액: ${Number(data.net_pay).toLocaleString()} 원</th></tr>
+                <tr>
+                    <th>성 명</th><td>${data.name}</td>
+                    <th>생년월일</th><td>${data.birth}</td>
+                </tr>
+                <tr>
+                    <th>소 속</th><td>${data.dept}</td>
+                    <th>직 위</th><td>${data.pos}</td>
+                </tr>
+                <tr>
+                    <th>주 소</th><td colspan="3">${data.address}</td>
+                </tr>
             </table>
-            <p>귀하의 노고에 감사드립니다.</p>
+
+            <div class="tbl-title">2. 재직사항</div>
+            <table>
+                <tr>
+                    <th>재직기간</th><td colspan="3">${data.tenure}</td>
+                </tr>
+                <tr>
+                    <th>용 도</th><td colspan="3">${data.purpose}</td>
+                </tr>
+            </table>
+
+            <div style="margin-top: 50px; font-size: 18px;">위와 같이 재직하고 있음을 증명합니다.</div>
+            
+            <div style="margin-top: 40px; font-size: 18px;">${data.today}</div>
+            
+            <div class="chairman-sign">
+                ${data.compName} 이사장 ${data.chairman}
+                ${data.seal ? `<img src="${data.seal}" class="seal-img">` : ''}
+            </div>
+
+            <div class="footer">
+                ${data.compAddr} ${data.compName}<br>
+                문의: ${data.contact}
+            </div>
+        </div>
         `;
-    } else if(type === 'cert') {
+    }
+    
+    // 급여명세서 인쇄 (기존 로직 유지)
+    else if(type === 'salary') {
         html += `
-            <h1 style="text-decoration:underline; margin-bottom:50px;">재 직 증 명 서</h1>
-            <table>
-                <tr><th>성 명</th><td>${data.name}</td><th>직 위</th><td>${data.pos}</td></tr>
-                <tr><th>소 속</th><td>${data.dept}</td><th>생년월일</th><td>-</td></tr>
-                <tr><th>주 소</th><td colspan="3">${data.address}</td></tr>
-                <tr><th>입사일</th><td colspan="3">${data.join}</td></tr>
-                <tr><th>용 도</th><td colspan="3">${data.purpose}</td></tr>
+            <h2 style="text-decoration:none; border-bottom:2px solid #333; padding-bottom:10px;">${data.yearMonth} 급여명세서</h2>
+            <table style="margin-top:30px;">
+                <tr><th>성명</th><td>${myInfo.emp_name}</td><th>부서</th><td>${myInfo.department}</td></tr>
+                <tr><th>지급총액</th><td style="text-align:right;">${Number(data.pay_total).toLocaleString()}</td><th>공제총액</th><td style="text-align:right;">${Number(data.ded_total).toLocaleString()}</td></tr>
+                <tr style="background:#eee; font-weight:bold; font-size:16px;">
+                    <th colspan="2">실수령액</th>
+                    <td colspan="2" style="text-align:right;">${Number(data.net_pay).toLocaleString()} 원</td>
+                </tr>
             </table>
-            <p style="margin-top:30px;">위 사람은 상기와 같이 재직하고 있음을 증명합니다.</p>
-            <p style="margin-top:30px;">${data.today}</p>
-            <div class="sign">용인모두의햇빛협동조합 이사장 (인)</div>
+            <div style="margin-top:30px; text-align:center;">귀하의 노고에 감사드립니다.</div>
         `;
     }
     
     html += `<script>window.print();<\/script></body></html>`;
     win.document.write(html);
     win.document.close();
+}
+
+// 급여, 공지사항 로딩 함수 (기존 유지)
+async function searchSalary() {
+    const ym = document.getElementById("salaryMonth").value;
+    if(!ym) return alert("월을 선택하세요.");
+    const { data, error } = await _supabase.from('hr_salary').select('*').eq('emp_id', myInfo.emp_id).eq('year_month', ym).single();
+    if(!data) { alert("내역이 없습니다."); return; }
+    currentSalaryData = data;
+    currentSalaryData.yearMonth = ym; // 인쇄용
+    document.getElementById("salaryResult").classList.remove("hidden");
+    document.getElementById("btnPrintSalary").classList.remove("hidden");
+    document.getElementById("sl_ym").innerText = ym;
+    const setVal = (id, val) => document.getElementById(id).innerText = Number(val).toLocaleString();
+    setVal("sl_basic", data.pay_basic); setVal("sl_meal", data.pay_meal); setVal("sl_car", data.pay_car); setVal("sl_child", data.pay_child); setVal("sl_bonus", data.pay_bonus); setVal("sl_p_total", data.pay_total);
+    setVal("sl_pension", data.ded_pension); setVal("sl_health", data.ded_health); setVal("sl_care", data.ded_care); setVal("sl_employ", data.ded_employ); setVal("sl_income", data.ded_income); setVal("sl_local", data.ded_local); setVal("sl_d_total", data.ded_total);
+    setVal("sl_net", data.net_pay);
+}
+
+async function loadNotices() {
+    const { data } = await _supabase.from('ref_notice').select('*').order('created_at', {ascending: false}).limit(5);
+    const el = document.getElementById("noticeList");
+    if(!data || data.length===0) { el.innerHTML='<div class="text-center p-3 text-muted">공지사항 없음</div>'; return; }
+    el.innerHTML = data.map(n => `<div class="list-group-item"><h6 class="fw-bold mb-1">${n.title}</h6><small class="text-muted">${n.created_at.slice(0,10)}</small><p class="mb-0 small">${n.content}</p></div>`).join("");
 }
 </script>
 </body>
