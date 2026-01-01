@@ -265,13 +265,49 @@ window.onload = async function() {
 };
 
 // [수정됨] 회계관리 설정(ref_company_info)에서 대표자 이름 불러오기
+// [수정] 회사 정보 로드 (로고=Public / 직인=Private 분리 처리)
 async function loadCompanyInfo() {
     const { data } = await _supabase.from('ref_company_info').select('*');
     if(data) {
         data.forEach(item => { companyInfo[item.key] = item.value; });
     }
-    // ceoName이 있으면 쓰고, 없으면 기본값 '이사장'
     companyInfo.chairman_name = companyInfo.ceoName || "이사장"; 
+
+    // 1. 로고 처리 (assets 버킷 - Public)
+    // DB에 파일명(예: logo_horizontal.png)이 있다고 가정
+    if (companyInfo.logo_horizontal_url) {
+        // 이미 http로 시작하면(구버전) 그대로 두고, 아니면 Public URL 생성
+        if (!companyInfo.logo_horizontal_url.startsWith('http')) {
+            const { data: logoData } = _supabase.storage
+                .from('assets') // 공개 버킷
+                .getPublicUrl(companyInfo.logo_horizontal_url);
+            
+            companyInfo.logo_horizontal_url = logoData.publicUrl;
+        }
+    }
+
+    // 2. 직인 처리 (attachments 버킷 - Private 보안)
+    // DB에 파일명(예: Official Seal.png)이 있다고 가정
+    if (companyInfo.seal_url) {
+        // http로 시작하는 구버전 URL이라면 -> Signed URL로 변환 시도 (경로 추출) 또는 경고
+        // 여기서는 파일명만 있다고 가정하고 Signed URL 생성
+        let sealPath = companyInfo.seal_url;
+        
+        // 만약 실수로 전체 URL을 넣었다면 파일명만 추출하는 안전장치
+        if (sealPath.startsWith('http')) {
+            sealPath = sealPath.split('/').pop(); 
+        }
+
+        const { data: sealData } = await _supabase.storage
+            .from('attachments') // 비공개 버킷
+            .createSignedUrl(sealPath, 3600); // 1시간 유효
+
+        if (sealData) {
+            companyInfo.seal_url = sealData.signedUrl;
+        } else {
+            console.error("직인 로드 실패 (권한 없음 또는 파일 없음)");
+        }
+    }
 }
 
 async function loadProfile() {
