@@ -9,16 +9,25 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
   <style>
-    body { background-color: #f0f2f5; padding: 20px; font-family: 'Segoe UI', sans-serif; }
+    body { background-color: #f0f2f5; padding: 20px; font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; }
     .main-container { max-width: 900px; margin: 0 auto; padding-bottom: 50px; }
     .hidden { display: none !important; }
-    .profile-card { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; align-items: center; }
+    
+    /* 카드 스타일 */
+    .profile-card, .tab-content { background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    .profile-card { padding: 30px; margin-bottom: 20px; display: flex; align-items: center; }
     .profile-icon { width: 70px; height: 70px; background: #e9ecef; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; margin-right: 20px; }
+    
+    /* 연차 카드 */
     .leave-card { background: white; border-radius: 12px; padding: 15px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); height: 100%; }
     .leave-num { font-size: 1.4rem; font-weight: bold; color: #0d6efd; }
+    
+    /* 탭 스타일 */
     .nav-tabs .nav-link { color: #495057; cursor: pointer; }
     .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; }
-    .tab-content { background: white; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 10px 10px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+    .tab-content { border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 10px 10px; padding: 25px; }
+
+    /* 급여 블라인드 */
     .salary-blur { filter: blur(6px); transition: filter 0.3s; cursor: pointer; user-select: none; }
     .salary-blur:hover { filter: blur(0); }
   </style>
@@ -76,37 +85,22 @@
           <input type="month" class="form-control" id="salaryMonth">
           <button class="btn btn-primary" onclick="searchSalary()">조회</button>
         </div>
-        <button class="btn btn-sm btn-outline-dark hidden" id="btnPrintSalary" onclick="printSalaryPopup()">🖨️ 명세서 인쇄</button>
+        <button class="btn btn-sm btn-outline-dark hidden" id="btnPrintSalary" onclick="printSalaryPopup()">🖨️ 명세서 인쇄 (상세)</button>
       </div>
+      
       <div id="salaryResult" class="hidden">
-        <div class="alert alert-warning small py-2">🔒 <strong>보안 주의:</strong> 금액 부분에 마우스를 올리면 블라인드가 해제됩니다.</div>
+        <div class="alert alert-warning small py-2">🔒 금액에 마우스를 올리면 블라인드가 해제됩니다. (상세 내역은 인쇄 버튼 클릭)</div>
         <div class="card p-3 shadow-sm border-0">
-          <h5 class="text-center fw-bold mb-3"><span id="sl_ym"></span> 급여명세서</h5>
-          <div class="row g-0 border">
-            <div class="col-6 border-end">
-              <div class="bg-light p-2 text-center fw-bold border-bottom">지급 내역</div>
-              <table class="table table-sm table-borderless mb-0 small">
-                <tr><td class="ps-3">기본급</td><td class="text-end pe-3"><span class="salary-blur" id="sl_basic">0</span></td></tr>
-                <tr><td class="ps-3">식 대</td><td class="text-end pe-3"><span class="salary-blur" id="sl_meal">0</span></td></tr>
-                <tr><td class="ps-3">차량유지비</td><td class="text-end pe-3"><span class="salary-blur" id="sl_car">0</span></td></tr>
-                <tr><td class="ps-3">육아수당</td><td class="text-end pe-3"><span class="salary-blur" id="sl_child">0</span></td></tr>
-                <tr><td class="ps-3 text-primary">성과급</td><td class="text-end pe-3"><span class="salary-blur" id="sl_bonus">0</span></td></tr>
-                <tr class="border-top"><td class="ps-3 fw-bold">지급 합계</td><td class="text-end pe-3 fw-bold text-primary"><span class="salary-blur" id="sl_p_total">0</span></td></tr>
-              </table>
-            </div>
-            <div class="col-6">
-              <div class="bg-light p-2 text-center fw-bold border-bottom">공제 내역</div>
-              <table class="table table-sm table-borderless mb-0 small">
-                <tr><td class="ps-3">국민연금</td><td class="text-end pe-3"><span class="salary-blur" id="sl_pension">0</span></td></tr>
-                <tr><td class="ps-3">건강보험</td><td class="text-end pe-3"><span class="salary-blur" id="sl_health">0</span></td></tr>
-                <tr><td class="ps-3">장기요양</td><td class="text-end pe-3"><span class="salary-blur" id="sl_care">0</span></td></tr>
-                <tr><td class="ps-3">고용보험</td><td class="text-end pe-3"><span class="salary-blur" id="sl_employ">0</span></td></tr>
-                <tr><td class="ps-3">소득세</td><td class="text-end pe-3"><span class="salary-blur" id="sl_income">0</span></td></tr>
-                <tr><td class="ps-3">지방소득세</td><td class="text-end pe-3"><span class="salary-blur" id="sl_local">0</span></td></tr>
-                <tr class="border-top"><td class="ps-3 fw-bold">공제 합계</td><td class="text-end pe-3 fw-bold text-danger"><span class="salary-blur" id="sl_d_total">0</span></td></tr>
-              </table>
-            </div>
-          </div>
+          <h5 class="text-center fw-bold mb-3"><span id="sl_ym"></span> 급여 요약</h5>
+          <table class="table table-bordered text-center mb-0">
+            <thead class="table-light"><tr><th>지급 합계</th><th>공제 합계</th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="text-primary fw-bold fs-5"><span class="salary-blur" id="sl_p_total">0</span></td>
+                <td class="text-danger fw-bold fs-5"><span class="salary-blur" id="sl_d_total">0</span></td>
+              </tr>
+            </tbody>
+          </table>
           <div class="mt-3 p-3 bg-primary bg-opacity-10 rounded text-center border border-primary">
             <span class="text-primary me-2">실 수령액</span>
             <h3 class="fw-bold m-0 d-inline-block"><span class="salary-blur" id="sl_net">0</span> 원</h3>
@@ -152,9 +146,6 @@
 </div>
 
 <script>
-// ============================================================
-// [설정] 수퍼베이스 연결
-// ============================================================
 const SUPABASE_URL = 'https://ifdqlwxgqgsvnawmhlfc.supabase.co'; 
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmZHFsd3hncWdzdm5hd21obGZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxODQ3NDIsImV4cCI6MjA4Mjc2MDc0Mn0.UKUvMOl58KuDH24seC3oSgla7mK5lr-vXjqtpalnl6k';
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -170,8 +161,7 @@ window.onload = async function() {
     if(!stored) { alert("로그인이 필요합니다."); location.href='index.html'; return; }
     myInfo = JSON.parse(stored);
 
-    const now = new Date();
-    document.getElementById("salaryMonth").value = now.toISOString().slice(0, 7); 
+    document.getElementById("salaryMonth").value = new Date().toISOString().slice(0, 7); 
 
     await Promise.all([ loadProfile(), loadCompanyInfo(), loadNotices() ]);
     calculateLeave();
@@ -179,21 +169,14 @@ window.onload = async function() {
 
 async function loadCompanyInfo() {
     const { data } = await _supabase.from('ref_company_info').select('*');
-    if(data) {
-        data.forEach(item => { companyInfo[item.key] = item.value; });
-    }
-    
-    // 이사장 자동 조회
+    if(data) data.forEach(item => { companyInfo[item.key] = item.value; });
     const { data: boss } = await _supabase.from('ref_employees').select('emp_name').eq('position', '이사장').single();
-    if(boss) {
-        companyInfo.chairman_name = boss.emp_name; 
-    }
+    if(boss) companyInfo.chairman_name = boss.emp_name; 
 }
 
 async function loadProfile() {
     const { data, error } = await _supabase.from('ref_employees').select('*').eq('emp_id', myInfo.emp_id).single();
     if(error) return;
-    
     myInfo = data; 
     localStorage.setItem('erp_user', JSON.stringify(data)); 
 
@@ -202,6 +185,7 @@ async function loadProfile() {
     document.getElementById("dspDept").innerText = data.department;
     document.getElementById("dspJoin").innerText = data.hire_date || '-';
     
+    // 근속기간 (증명서용)
     if(data.hire_date) {
         const join = new Date(data.hire_date);
         const diff = new Date() - join;
@@ -221,7 +205,6 @@ async function loadProfile() {
         const btn = document.getElementById("btnContract");
         btn.disabled = false;
         btn.className = "btn btn-outline-primary";
-        btn.innerText = "📄 계약서 보기";
         btn.onclick = () => window.open(data.contract_url, '_blank');
     }
 }
@@ -251,28 +234,17 @@ async function calculateLeave() {
             generatedLeave = 15 + Math.floor((years - 1) / 2);
         }
     }
-
-    let usedLeave = 0;
-    let advanceLeave = 0; 
-    
+    let usedLeave = 0; let advanceLeave = 0;
     const { data } = await _supabase.from('hr_leave').select('used_days, advance_days').eq('emp_id', myInfo.emp_id).single();
-    if (data) {
-        usedLeave = Number(data.used_days || 0);
-        advanceLeave = Number(data.advance_days || 0); 
-    }
-
-    const remainLeave = (generatedLeave + advanceLeave) - usedLeave;
-
+    if (data) { usedLeave = Number(data.used_days||0); advanceLeave = Number(data.advance_days||0); }
+    
     document.getElementById("lvTotal").innerText = generatedLeave;
     document.getElementById("lvAdvance").innerText = advanceLeave; 
     document.getElementById("lvUsed").innerText = usedLeave;
-    document.getElementById("lvRemain").innerText = remainLeave;
+    document.getElementById("lvRemain").innerText = (generatedLeave + advanceLeave) - usedLeave;
 }
 
-function openCertModal() {
-    document.getElementById('certPurposeInput').value = "";
-    purposeModal.show();
-}
+function openCertModal() { document.getElementById('certPurposeInput').value = ""; purposeModal.show(); }
 
 async function runCertIssue() {
     const purpose = document.getElementById('certPurposeInput').value;
@@ -280,86 +252,102 @@ async function runCertIssue() {
     purposeModal.hide();
     
     const { error } = await _supabase.from('log_cert').insert({
-        emp_id: myInfo.emp_id,
-        emp_name: myInfo.emp_name,
-        cert_type: '재직증명서',
-        purpose: purpose
+        emp_id: myInfo.emp_id, emp_name: myInfo.emp_name, cert_type: '재직증명서', purpose: purpose
     });
+    if(error) console.error(error);
 
-    if(error) console.error("발급 기록 실패:", error);
-
+    // 주소 중복 제거
+    let cleanAddr = (companyInfo.company_address || "").replace(/용인모두의\s?햇빛협동조합/g, '').trim();
+    
+    // 생년월일
     let birthStr = "-";
     if (myInfo.rrn) {
-        const y = myInfo.rrn.substring(0,2);
-        const m = myInfo.rrn.substring(2,4);
-        const d = myInfo.rrn.substring(4,6);
-        const prefix = Number(y) > 30 ? "19" : "20"; 
+        const y = myInfo.rrn.substring(0,2), m = myInfo.rrn.substring(2,4), d = myInfo.rrn.substring(4,6);
+        const prefix = Number(y) > 30 ? "19" : "20";
         birthStr = `${prefix}${y}년 ${m}월 ${d}일`;
     }
 
-    let cleanAddr = companyInfo.company_address;
-    if (cleanAddr) {
-        cleanAddr = cleanAddr.replace('용인모두의 햇빛협동조합', '')
-                             .replace('용인모두의햇빛협동조합', '')
-                             .trim();
-    }
-
     const certData = {
+        type: 'cert',
         logo: companyInfo.logo_horizontal_url || "", 
-        name: myInfo.emp_name,
-        birth: birthStr,
-        dept: myInfo.department,
-        pos: myInfo.position,
-        address: myInfo.address,
-        tenure: myInfo.tenureStr, 
-        purpose: purpose,
+        name: myInfo.emp_name, birth: birthStr, dept: myInfo.department, pos: myInfo.position, address: myInfo.address,
+        tenure: myInfo.tenureStr, purpose: purpose,
         today: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }),
-        chairman: companyInfo.chairman_name || "이사장",
-        compName: companyInfo.company_name,
-        compAddr: cleanAddr,
-        contact: companyInfo.company_contact,
-        seal: companyInfo.seal_url
+        chairman: companyInfo.chairman_name || "이사장", compName: companyInfo.company_name, compAddr: cleanAddr, contact: companyInfo.company_contact, seal: companyInfo.seal_url
     };
-    
-    printDocument('cert', certData);
+    printDocument(certData);
 }
 
-// [누락되었던 함수 복구!]
+// [수정] 급여명세서 팝업 함수
 function printSalaryPopup() {
     if(!currentSalaryData) return alert("먼저 급여 내역을 조회해주세요.");
-    printDocument('salary', currentSalaryData);
+    
+    // 데이터 포맷팅: DB 컬럼을 인쇄용 데이터 객체로 변환
+    const d = currentSalaryData;
+    // 0원은 빈칸("")으로 표시하는 유틸리티
+    const fmt = (n) => (!n || Number(n)===0) ? "" : Number(n).toLocaleString();
+    const fmtFix = (n) => Number(n).toLocaleString(); // 기본급 등 0이어도 0으로 표시할 것들
+
+    const salaryData = {
+        type: 'salary',
+        ym: d.year_month,
+        name: myInfo.emp_name, dept: myInfo.department, pos: myInfo.position,
+        // 지급
+        p_basic: fmtFix(d.pay_basic), p_meal: fmtFix(d.pay_meal), p_car: fmtFix(d.pay_car),
+        p_pos: fmt(d.pay_position), p_svc: fmt(d.pay_service), p_ot: fmt(d.pay_overtime),
+        p_child: fmt(d.pay_child), p_bonus: fmt(d.pay_bonus),
+        p_total: fmtFix(d.pay_total),
+        // 공제
+        d_pen: fmt(d.ded_pension), d_hlt: fmt(d.ded_health), d_care: fmt(d.ded_care), d_emp: fmt(d.ded_employ),
+        d_inc: fmt(d.ded_income), d_loc: fmt(d.ded_local), 
+        d_adv: fmt(d.ded_advance), d_cap: fmt(d.ded_capital), // 가불금, 출자금
+        d_total: fmtFix(d.ded_total),
+        net: fmtFix(d.net_pay),
+        logo: companyInfo.seal_url // 직인
+    };
+    printDocument(salaryData);
 }
 
-function printDocument(type, data) {
-    const win = window.open('', '', 'width=900,height=1100');
-    let html = `
-    <html><head><title>인쇄</title>
-    <style>
-      @page { size: A4 portrait; margin: 0; }
-      @media print { 
-        html, body { 
-          width: 210mm; height: 297mm; margin: 0; padding: 0; overflow: hidden;
-          -webkit-print-color-adjust: exact; print-color-adjust: exact; 
-        }
-      }
-      body { font-family: "Malgun Gothic", serif; margin: 0; padding: 0; box-sizing: border-box; }
-      .page-wrap { width: 210mm; height: 296mm; padding: 20mm; box-sizing: border-box; position: relative; }
-      .cert-container { width: 100%; height: 100%; border: 2px solid #333; padding: 20px; text-align: center; position: relative; box-sizing: border-box; }
-      .top-logo { position: absolute; left: 20px; top: 20px; height: 45px; z-index: 10; } 
-      h2 { font-size: 32px; text-decoration: underline; margin: 60px 0 40px 0; font-weight: bold; }
-      .doc-num { text-align: right; font-size: 13px; margin-bottom: 20px; }
-      .tbl-title { text-align: left; font-weight: bold; font-size: 16px; margin-top: 10px; margin-bottom: 5px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 15px; }
-      th, td { border: 1px solid #000; padding: 10px; }
-      th { background: #f9f9f9 !important; width: 110px; text-align: center; }
-      .footer { margin-top: 60px; font-size: 12px; line-height: 1.6; color: #555; }
-      .chairman-sign { font-size: 24px; font-weight: bold; margin-top: 50px; position: relative; display: inline-block; }
-      .seal-img { position: absolute; right: -50px; top: -20px; width: 80px; opacity: 0.8; z-index: 10; }
-    </style>
-    </head><body><div class="page-wrap">`;
+async function searchSalary() {
+    const ym = document.getElementById("salaryMonth").value;
+    if(!ym) return alert("월을 선택하세요.");
+    const { data, error } = await _supabase.from('hr_salary').select('*').eq('emp_id', myInfo.emp_id).eq('year_month', ym).single();
     
-    if(type === 'cert') {
-        html += `
+    const res = document.getElementById("salaryResult");
+    const btn = document.getElementById("btnPrintSalary");
+    
+    if(!data) { 
+        alert("내역이 없습니다."); 
+        res.classList.add("hidden"); btn.classList.add("hidden");
+        return; 
+    }
+    
+    currentSalaryData = data;
+    currentSalaryData.year_month = ym;
+    
+    res.classList.remove("hidden");
+    btn.classList.remove("hidden");
+    document.getElementById("sl_ym").innerText = ym;
+    document.getElementById("sl_p_total").innerText = Number(data.pay_total).toLocaleString();
+    document.getElementById("sl_d_total").innerText = Number(data.ded_total).toLocaleString();
+    document.getElementById("sl_net").innerText = Number(data.net_pay).toLocaleString();
+}
+
+async function loadNotices() {
+    const { data } = await _supabase.from('ref_notice').select('*').order('created_at', {ascending: false}).limit(5);
+    const el = document.getElementById("noticeList");
+    el.innerHTML = (!data || data.length===0) ? '<div class="text-center p-3 text-muted">없음</div>' :
+        data.map(n => `<div class="list-group-item"><h6 class="fw-bold mb-1">${n.title}</h6><small class="text-muted">${n.created_at.slice(0,10)}</small></div>`).join("");
+}
+
+// [핵심] 인쇄 함수 (재직증명서 & 급여명세서 통합 디자인)
+function printDocument(data) {
+    const win = window.open('', '', 'width=900,height=1100');
+    let contentHtml = "";
+
+    if(data.type === 'cert') {
+        // 재직증명서 HTML (기존과 동일)
+        contentHtml = `
         <div class="cert-container">
             ${data.logo ? `<img src="${data.logo}" class="top-logo">` : ''}
             <div style="text-align:right; font-size:12px; margin-top:30px; margin-bottom:5px;">www.yonginsolar.kr</div>
@@ -374,48 +362,126 @@ function printDocument(type, data) {
             <div class="chairman-sign">${data.compName} 이사장 ${data.chairman}${data.seal ? `<img src="${data.seal}" class="seal-img">` : ''}</div>
             <div class="footer">${data.compAddr} ${data.compName}<br>문의: ${data.contact}</div>
         </div>`;
-    } else if(type === 'salary') {
-        html += `
-            <div style="padding: 20px;">
-                <h2 style="text-decoration:none; border-bottom:2px solid #333; padding-bottom:10px;">${data.yearMonth} 급여명세서</h2>
-                <table style="margin-top:30px;">
-                    <tr><th>성명</th><td>${myInfo.emp_name}</td><th>부서</th><td>${myInfo.department}</td></tr>
-                    <tr><th>지급총액</th><td style="text-align:right;">${Number(data.pay_total).toLocaleString()}</td><th>공제총액</th><td style="text-align:right;">${Number(data.ded_total).toLocaleString()}</td></tr>
-                    <tr style="background:#eee; font-weight:bold; font-size:16px;">
-                        <th colspan="2">실수령액</th>
-                        <td colspan="2" style="text-align:right;">${Number(data.net_pay).toLocaleString()} 원</td>
-                    </tr>
-                </table>
-                <div style="margin-top:30px; text-align:center;">귀하의 노고에 감사드립니다.</div>
-            </div>`;
+    } 
+    else if (data.type === 'salary') {
+        // [신규 디자인] 급여명세서 (image_0dd3ee.png 스타일)
+        contentHtml = `
+        <div class="salary-container">
+            <h1 style="text-align:center; margin-bottom: 30px; font-size: 28px;">급 여 명 세 서</h1>
+            
+            <table class="info-tbl">
+                <tr>
+                    <th>지급연월</th><td>${data.ym}</td>
+                    <th>사 원 명</th><td>${data.name}</td>
+                </tr>
+                <tr>
+                    <th>지급일자</th><td>25일</td>
+                    <th>소속/직급</th><td>${data.dept} / ${data.pos}</td>
+                </tr>
+            </table>
+
+            <div class="cols-wrap">
+                <div class="col-left">
+                    <div class="col-header" style="color:#0d47a1; border-bottom: 2px solid #0d47a1;">지급내역</div>
+                    <table class="items-tbl">
+                        <tr><td>기본급</td><td class="amt">${data.p_basic}</td></tr>
+                        <tr><td>식 대</td><td class="amt">${data.p_meal}</td></tr>
+                        <tr><td>차량유지비</td><td class="amt">${data.p_car}</td></tr>
+                        <tr><td>직책수당</td><td class="amt">${data.p_pos}</td></tr>
+                        <tr><td>근속수당</td><td class="amt">${data.p_svc}</td></tr>
+                        <tr><td>연장수당</td><td class="amt">${data.p_ot}</td></tr>
+                        <tr><td>육아수당</td><td class="amt">${data.p_child}</td></tr>
+                        <tr><td>상여금</td><td class="amt">${data.p_bonus}</td></tr>
+                        <tr><td>&nbsp;</td><td></td></tr>
+                        <tr><td>&nbsp;</td><td></td></tr>
+                    </table>
+                </div>
+                <div class="col-right">
+                    <div class="col-header" style="color:#b71c1c; border-bottom: 2px solid #b71c1c;">공제내역</div>
+                    <table class="items-tbl">
+                        <tr><td>국민연금</td><td class="amt">${data.d_pen}</td></tr>
+                        <tr><td>건강보험</td><td class="amt">${data.d_hlt}</td></tr>
+                        <tr><td>장기요양</td><td class="amt">${data.d_care}</td></tr>
+                        <tr><td>고용보험</td><td class="amt">${data.d_emp}</td></tr>
+                        <tr><td>소득세</td><td class="amt">${data.d_inc}</td></tr>
+                        <tr><td>지방소득세</td><td class="amt">${data.d_loc}</td></tr>
+                        <tr><td>가불금</td><td class="amt">${data.d_adv}</td></tr>
+                        <tr><td>출자금</td><td class="amt">${data.d_cap}</td></tr>
+                        <tr><td>&nbsp;</td><td></td></tr>
+                        <tr><td>&nbsp;</td><td></td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="summary-box">
+                <div class="thank-you">귀하의 노고에 진심으로 감사드립니다.</div>
+                <div class="sum-table-wrap">
+                    <table class="sum-tbl">
+                        <tr><th>지급합계</th><td class="amt">${data.p_total}</td></tr>
+                        <tr><th>공제합계</th><td class="amt">${data.d_total}</td></tr>
+                        <tr class="net-row"><th>실지급액</th><td class="amt">${data.net}</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div style="margin-top:50px; text-align:center; position:relative;">
+                <span style="font-size:14px; font-weight:bold;">용인모두의햇빛협동조합 이사장</span>
+                ${data.logo ? `<img src="${data.logo}" style="position:absolute; margin-left:10px; top:-15px; width:60px; opacity:0.8;">` : ''}
+            </div>
+        </div>
+        `;
     }
+
+    const html = `
+    <html><head><title>인쇄</title>
+    <style>
+      @page { size: A4 portrait; margin: 0; }
+      @media print { 
+        html, body { width: 210mm; height: 297mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; } 
+      }
+      body { font-family: "Malgun Gothic", serif; margin: 0; padding: 0; }
+      .page-wrap { width: 210mm; height: 296mm; padding: 15mm; box-sizing: border-box; }
+      
+      /* 공통 테이블 스타일 */
+      table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      
+      /* 재직증명서 스타일 (기존 유지) */
+      .cert-container { border: 2px solid #333; padding: 20px; text-align: center; height: 100%; position: relative; box-sizing: border-box; }
+      .cert-container th, .cert-container td { border: 1px solid #000; padding: 10px; }
+      .cert-container th { background: #f9f9f9 !important; width: 110px; text-align: center; }
+      .top-logo { position: absolute; left: 20px; top: 20px; height: 45px; }
+      .cert-container h2 { font-size: 32px; text-decoration: underline; margin: 60px 0 40px 0; font-weight: bold; }
+      .doc-num { text-align: right; font-size: 13px; margin-bottom: 20px; }
+      .tbl-title { text-align: left; font-weight: bold; font-size: 16px; margin-top: 10px; margin-bottom: 5px; }
+      .footer { margin-top: 60px; font-size: 12px; line-height: 1.6; color: #555; }
+      .chairman-sign { font-size: 24px; font-weight: bold; margin-top: 50px; position: relative; display: inline-block; }
+      .seal-img { position: absolute; right: -50px; top: -20px; width: 80px; opacity: 0.8; z-index: 10; }
+
+      /* [신규] 급여명세서 스타일 */
+      .salary-container { padding: 10px; }
+      .info-tbl th { background-color: #f5f5f5 !important; font-weight: bold; text-align: center; border: 1px solid #ddd; padding: 8px; width: 15%; }
+      .info-tbl td { border: 1px solid #ddd; padding: 8px; width: 35%; }
+      
+      .cols-wrap { display: flex; gap: 20px; margin-top: 20px; border-top: 2px solid #888; padding-top: 10px; }
+      .col-left, .col-right { flex: 1; }
+      .col-header { text-align: center; font-weight: bold; padding: 5px; margin-bottom: 5px; font-size: 16px; }
+      
+      .items-tbl th, .items-tbl td { padding: 8px 4px; border-bottom: 1px solid #eee; }
+      .items-tbl .amt { text-align: right; }
+      
+      .summary-box { display: flex; margin-top: 40px; border-top: 2px solid #888; padding-top: 20px; align-items: center; }
+      .thank-you { flex: 1; font-size: 14px; color: #555; padding-left: 20px; }
+      .sum-table-wrap { width: 300px; }
+      .sum-tbl th { background: #f9f9f9; text-align: center; padding: 8px; border: 1px solid #ddd; font-weight: normal; }
+      .sum-tbl td { text-align: right; padding: 8px; border: 1px solid #ddd; background: #fff; font-weight: bold; }
+      .net-row th, .net-row td { background-color: #f0f0f0 !important; font-weight: bold; border-top: 2px solid #555; }
+      
+    </style>
+    </head><body><div class="page-wrap">${contentHtml}</div><script>window.print();<\/script></body></html>
+    `;
     
-    html += `</div><script>window.print();<\/script></body></html>`;
     win.document.write(html);
     win.document.close();
-}
-
-async function searchSalary() {
-    const ym = document.getElementById("salaryMonth").value;
-    if(!ym) return alert("월을 선택하세요.");
-    const { data, error } = await _supabase.from('hr_salary').select('*').eq('emp_id', myInfo.emp_id).eq('year_month', ym).single();
-    if(!data) { alert("내역이 없습니다."); return; }
-    currentSalaryData = data;
-    currentSalaryData.yearMonth = ym; 
-    document.getElementById("salaryResult").classList.remove("hidden");
-    document.getElementById("btnPrintSalary").classList.remove("hidden");
-    document.getElementById("sl_ym").innerText = ym;
-    const setVal = (id, val) => document.getElementById(id).innerText = Number(val).toLocaleString();
-    setVal("sl_basic", data.pay_basic); setVal("sl_meal", data.pay_meal); setVal("sl_car", data.pay_car); setVal("sl_child", data.pay_child); setVal("sl_bonus", data.pay_bonus); setVal("sl_p_total", data.pay_total);
-    setVal("sl_pension", data.ded_pension); setVal("sl_health", data.ded_health); setVal("sl_care", data.ded_care); setVal("sl_employ", data.ded_employ); setVal("sl_income", data.ded_income); setVal("sl_local", data.ded_local); setVal("sl_d_total", data.ded_total);
-    setVal("sl_net", data.net_pay);
-}
-
-async function loadNotices() {
-    const { data } = await _supabase.from('ref_notice').select('*').order('created_at', {ascending: false}).limit(5);
-    const el = document.getElementById("noticeList");
-    if(!data || data.length===0) { el.innerHTML='<div class="text-center p-3 text-muted">공지사항 없음</div>'; return; }
-    el.innerHTML = data.map(n => `<div class="list-group-item"><h6 class="fw-bold mb-1">${n.title}</h6><small class="text-muted">${n.created_at.slice(0,10)}</small><p class="mb-0 small">${n.content}</p></div>`).join("");
 }
 </script>
 </body>
